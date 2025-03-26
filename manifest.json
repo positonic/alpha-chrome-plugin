@@ -1,5 +1,5 @@
 {
-    "name": "Voice Dictation Extension",
+    "name": "Alpha Trader",
     "version": "1.0",
     "description": "A voice dictation extension that allows continuous dictation in a detached window",
     "manifest_version": 3,

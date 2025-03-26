@@ -15,19 +15,7 @@ console.log('Extension initialized');
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM fully loaded');
     
-    // Show start button immediately - skip complicated permission flow
-    startButton.style.display = 'block';
-    permissionStatus.innerHTML = '✅ Ready to use voice recognition';
-    
-    // Add click handlers
-    startButton.onclick = toggleSpeechRecognition;
-    resetPermissionsButton.onclick = resetMicrophonePermissions;
-    openChromeSettingsButton.onclick = openChromeSettings;
-    openSettingsLink.onclick = function(e) {
-        e.preventDefault();
-        openChromeSettings();
-        return false;
-    };
+   
 });
 
 // Open Chrome microphone settings
@@ -362,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
             type: 'popup',
             width: 400,
             height: 300
-        }, (window) => {
+        }, () => {
             // Close the popup
             window.close();
         });
