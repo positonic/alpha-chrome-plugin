@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Voice Dictation</title>
+    <title>Voice Dictation Extension</title>
     <style>
       body { 
         font-family: sans-serif; 
@@ -111,31 +111,20 @@
     </style>
   </head>
   <body>
-    <h3>Voice Dictation Extension</h3>
+    <h1>Voice Dictation Extension</h1>
     
-    <div class="note error">
-      <strong class="important">Permission Problem Detected:</strong> Chrome is not showing the microphone permission prompt. You need to manually allow microphone access:
-      <ol class="permission-steps">
-        <li>Open <a href="#" id="open-settings">Chrome Microphone Settings</a></li>
-        <li>Look for this extension in the list (chrome-extension://...)</li>
-        <li>Change it from "Block" to "Allow"</li>
-        <li>Then come back and try again</li>
-      </ol>
+    <div id="status"></div>
+    
+    <!-- These are the two key buttons we need -->
+    <button id="request-permission">Allow Microphone Access</button>
+    <button id="start-dictation" disabled>Start Dictation</button>
+    
+    <!-- You can keep your test area if desired -->
+    <div class="test-area">
+        <h2>Test Area</h2>
+        <textarea id="test-area" placeholder="Test your dictation here..."></textarea>
     </div>
-    
-    <div id="permission-status">⚠️ Microphone access needed</div>
-    
-    <div class="button-group">
-      <button id="open-chrome-settings" class="secondary-button">Open Chrome Microphone Settings</button>
-      <button id="reset-permissions">Reset & Request Permissions Again</button>
-      <button id="start">Start Listening</button>
-    </div>
-    
-    <div class="instructions">Test below or click 'Start Listening' and speak into any text field on the webpage:</div>
-    <textarea id="test-area" placeholder="Test your dictation here..."></textarea>
-    <div>Transcribed text:</div>
-    <div id="output">Click "Start Listening" above to begin.</div>
-    
+
     <script src="popup.js"></script>
   </body>
 </html>

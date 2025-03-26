@@ -336,4 +336,107 @@ function handleMicrophoneError(error) {
     }
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+    const startButton = document.getElementById('start-dictation');
+    const permissionButton = document.getElementById('request-permission');
+    const status = document.getElementById('status');
+
+    // Check for microphone permission on load
+    checkMicrophonePermission();
+
+    // Handle permission button click
+    permissionButton.onclick = async () => {
+        try {
+            await requestMicrophonePermission();
+            await checkMicrophonePermission();
+        } catch (error) {
+            console.error('Microphone permission error:', error);
+            status.textContent = 'Error: Could not access microphone';
+        }
+    };
+
+    // Handle start button click - open detached window
+    startButton.onclick = () => {
+        chrome.windows.create({
+            url: 'dictation.html',
+            type: 'popup',
+            width: 400,
+            height: 300
+        }, (window) => {
+            // Close the popup
+            window.close();
+        });
+    };
+});
+
+// Check microphone permission
+async function checkMicrophonePermission() {
+    const permissionButton = document.getElementById('request-permission');
+    const startButton = document.getElementById('start-dictation');
+    const status = document.getElementById('status');
+
+    try {
+        // Check if the API is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            status.textContent = 'Media devices API not supported';
+            permissionButton.disabled = true;
+            startButton.disabled = true;
+            return;
+        }
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasAudioDevice = devices.some(device => device.kind === 'audioinput');
+
+        if (!hasAudioDevice) {
+            status.textContent = 'No microphone detected';
+            permissionButton.disabled = true;
+            startButton.disabled = true;
+            return;
+        }
+
+        const result = await navigator.permissions.query({ name: 'microphone' });
+        
+        switch (result.state) {
+            case 'granted':
+                status.textContent = 'Ready to start';
+                permissionButton.style.display = 'none';
+                startButton.disabled = false;
+                break;
+            case 'prompt':
+                status.textContent = 'Microphone permission needed';
+                permissionButton.style.display = 'block';
+                startButton.disabled = true;
+                break;
+            case 'denied':
+                status.textContent = 'Microphone access denied';
+                permissionButton.style.display = 'block';
+                startButton.disabled = true;
+                break;
+        }
+    } catch (error) {
+        console.error('Error checking permission:', error);
+        status.textContent = 'Error checking microphone permission';
+        startButton.disabled = true;
+    }
+}
+
+// Request microphone permission
+async function requestMicrophonePermission() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
+        // Stop the stream immediately, we just needed permission
+        stream.getTracks().forEach(track => track.stop());
+        return true;
+    } catch (error) {
+        console.error('Error requesting permission:', error);
+        throw error;
+    }
+}
+
 
