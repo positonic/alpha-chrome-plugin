@@ -155,8 +155,9 @@ async function startListening() {
         });
         const data = await response.json();
         console.log('startListening: Response:', data);
-        currentSessionId = data.result.data.json.sessionId;
+        currentSessionId = data.result.data.id;  // Changed from sessionId to id
         console.log('startListening: Current session ID:', currentSessionId);
+        
         // Request microphone access
         const stream = await navigator.mediaDevices.getUserMedia({ 
             audio: {
@@ -184,8 +185,8 @@ async function startListening() {
 }
 
 // Save transcription to server
-async function saveTranscription(sessionId, transcriptionText) {
-    console.log('Saving transcription:', sessionId, transcriptionText);
+async function saveTranscription(id, transcriptionText) {  // Changed parameter name to match
+    console.log('Saving transcription:', id, transcriptionText);
     try {
         const response = await fetch('http://localhost:3000/api/trpc/transcription.saveTranscription', {
             method: 'POST',
@@ -194,7 +195,7 @@ async function saveTranscription(sessionId, transcriptionText) {
             },
             body: JSON.stringify({
                 json: {
-                    sessionId,
+                    id,  // Changed from sessionId to id
                     transcription: transcriptionText
                 }
             })
