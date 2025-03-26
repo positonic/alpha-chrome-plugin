@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Voice Dictation</title>
+    <style>
+      body { 
+        font-family: sans-serif; 
+        padding: 10px; 
+        width: 380px; 
+      }
+      button { 
+        margin-bottom: 10px;
+        padding: 8px 16px;
+        background: #4285f4;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        width: 100%;
+      }
+      button:hover {
+        background: #3367d6;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .secondary-button {
+        background: #f1f1f1;
+        color: #333;
+        font-size: 12px;
+        padding: 6px 12px;
+      }
+      .secondary-button:hover {
+        background: #e1e1e1;
+      }
+      #output { 
+        white-space: pre-wrap; 
+        margin-bottom: 10px;
+        padding: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+        min-height: 60px;
+        line-height: 1.5;
+      }
+      textarea { 
+        width: 100%; 
+        height: 80px; 
+        margin-bottom: 10px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      .instructions { 
+        font-size: 12px; 
+        color: #666; 
+        margin-bottom: 10px;
+      }
+      #permission-status {
+        color: #666;
+        margin-bottom: 10px;
+      }
+      .note {
+        font-size: 12px;
+        background-color: #FFFDE7;
+        padding: 8px;
+        border-radius: 4px;
+        border-left: 3px solid #FFC107;
+        margin-bottom: 10px;
+        line-height: 1.4;
+      }
+      .error {
+        background-color: #FFEBEE;
+        border-left: 3px solid #F44336;
+      }
+      .important {
+        font-weight: bold;
+        color: #d14836;
+      }
+      a {
+        color: #4285f4;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .permission-steps {
+        margin-top: 8px;
+        list-style-type: decimal;
+        padding-left: 25px;
+      }
+      .permission-steps li {
+        margin-bottom: 5px;
+      }
+      h3 {
+        margin-top: 0;
+      }
+      .button-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+      .text-center {
+        text-align: center;
+      }
+      .mt-10 {
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>Voice Dictation Extension</h3>
+    
+    <div class="note error">
+      <strong class="important">Permission Problem Detected:</strong> Chrome is not showing the microphone permission prompt. You need to manually allow microphone access:
+      <ol class="permission-steps">
+        <li>Open <a href="#" id="open-settings">Chrome Microphone Settings</a></li>
+        <li>Look for this extension in the list (chrome-extension://...)</li>
+        <li>Change it from "Block" to "Allow"</li>
+        <li>Then come back and try again</li>
+      </ol>
+    </div>
+    
+    <div id="permission-status">⚠️ Microphone access needed</div>
+    
+    <div class="button-group">
+      <button id="open-chrome-settings" class="secondary-button">Open Chrome Microphone Settings</button>
+      <button id="reset-permissions">Reset & Request Permissions Again</button>
+      <button id="start">Start Listening</button>
+    </div>
+    
+    <div class="instructions">Test below or click 'Start Listening' and speak into any text field on the webpage:</div>
+    <textarea id="test-area" placeholder="Test your dictation here..."></textarea>
+    <div>Transcribed text:</div>
+    <div id="output">Click "Start Listening" above to begin.</div>
+    
+    <script src="popup.js"></script>
+  </body>
+</html>

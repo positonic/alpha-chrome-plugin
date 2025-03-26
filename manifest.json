@@ -1,0 +1,21 @@
+{
+    "name": "Voice Dictation Extension",
+    "version": "1.0",
+    "description": "Use your voice to dictate text using Web Speech API.",
+    "manifest_version": 3,
+    "permissions": [
+        "activeTab",
+        "scripting",
+        "tabs",
+        "storage"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "action": {
+      "default_popup": "popup.html"
+    },
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'; media-src 'self' https: blob:"
+    }
+}
