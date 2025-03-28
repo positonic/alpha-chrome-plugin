@@ -232,6 +232,12 @@ async function saveTranscription(id, transcriptionText) {
         });
         const data = await response.json();
         console.log('saveTranscription: Response:', data);
+        
+        // Update status to show save was successful
+        if (data.result.success) {
+            status.textContent = 'Listening... (Last save: ' + getNow() + ')';
+        }
+        
         return data.result.success;
     } catch (error) {
         console.error('Error saving transcription:', error);
