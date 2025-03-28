@@ -128,24 +128,24 @@ function initializeSpeechRecognition() {
             
             // Check for screenshot command
             if (transcript.toLowerCase().includes('take screenshot')) {
-                // Get the parent window's tabs
                 chrome.tabs.query({active: true, lastFocusedWindow: true}, function(tabs) {
                     if (tabs[0]) {
-                        // Get the window ID of the parent window
                         chrome.windows.get(tabs[0].windowId, function(parentWindow) {
-                            // Capture the tab in the parent window
-                            chrome.tabs.captureVisibleTab(parentWindow.id, {format: 'png'}, function(dataUrl) {
+                            chrome.tabs.captureVisibleTab(parentWindow.id, {format: 'png'}, async function(dataUrl) {
                                 // Play shutter sound
                                 shutterSound.play().catch(err => console.log('Could not play shutter sound:', err));
                                 
-                                // Create a temporary link to download the screenshot
+                                // Save locally
                                 const link = document.createElement('a');
                                 link.href = dataUrl;
                                 link.download = `screenshot_${getNow().replace(/[/:]/g, '-')}.png`;
                                 link.click();
                                 
-                                // Update status to indicate screenshot was taken
-                                status.textContent = 'Screenshot saved!';
+                                // Save to server
+                                const saved = await saveScreenshot(dataUrl);
+                                
+                                // Update status
+                                status.textContent = saved ? 'Screenshot saved locally and to server!' : 'Screenshot saved locally (server save failed)';
                                 setTimeout(() => {
                                     status.textContent = 'Listening...';
                                 }, 2000);
@@ -273,6 +273,38 @@ async function saveTranscription(id, transcriptionText) {
         if (error.message === 'API key not set') {
             status.textContent = 'Please set your API key in the extension popup';
         }
+        return false;
+    }
+}
+
+// Add this function near other utility functions
+async function saveScreenshot(dataUrl) {
+    console.log('Saving screenshot');
+    try {
+        const apiKey = await getApiKey();
+        
+        // Convert base64 data URL to binary data
+        const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
+        
+        const response = await fetch('https://thehaven-hq.vercel.app/api/trpc/transcription.saveScreenshot', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey
+            },
+            body: JSON.stringify({
+                json: {
+                    sessionId: currentSessionId,
+                    screenshot: base64Data,
+                    timestamp: getNow()
+                }
+            })
+        });
+        const data = await response.json();
+        console.log('saveScreenshot: Response:', data);
+        return data.result.success;
+    } catch (error) {
+        console.error('Error saving screenshot:', error);
         return false;
     }
 }
