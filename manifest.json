@@ -7,7 +7,8 @@
         "activeTab",
         "scripting",
         "tabs",
-        "storage"
+        "storage",
+        "windows"
     ],
     "host_permissions": [
         "<all_urls>"
@@ -22,7 +23,8 @@
         "resources": [
           "dictation.html",
           "dictation.js",
-          "timeout.mp3"
+          "timeout.mp3",
+          "shutter.mp3"
         ],
         "matches": ["<all_urls>"]
     }]

@@ -2,6 +2,7 @@ const toggleButton = document.getElementById('toggleDictation');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
 const minimizeButton = document.querySelector('.minimize');
+const shutterSound = new Audio('shutter.mp3');
 
 let isListening = false;
 let recognition;
@@ -124,11 +125,39 @@ function initializeSpeechRecognition() {
                 .join(' ');
             
             console.log('recognition.onresult: Transcript:', transcript);
-            //currentTranscription = currentTranscription === "" ? transcript : currentTranscription + " " + transcript; 
+            
+            // Check for screenshot command
+            if (transcript.toLowerCase().includes('take screenshot')) {
+                // Get the parent window's tabs
+                chrome.tabs.query({active: true, lastFocusedWindow: true}, function(tabs) {
+                    if (tabs[0]) {
+                        // Get the window ID of the parent window
+                        chrome.windows.get(tabs[0].windowId, function(parentWindow) {
+                            // Capture the tab in the parent window
+                            chrome.tabs.captureVisibleTab(parentWindow.id, {format: 'png'}, function(dataUrl) {
+                                // Play shutter sound
+                                shutterSound.play().catch(err => console.log('Could not play shutter sound:', err));
+                                
+                                // Create a temporary link to download the screenshot
+                                const link = document.createElement('a');
+                                link.href = dataUrl;
+                                link.download = `screenshot_${getNow().replace(/[/:]/g, '-')}.png`;
+                                link.click();
+                                
+                                // Update status to indicate screenshot was taken
+                                status.textContent = 'Screenshot saved!';
+                                setTimeout(() => {
+                                    status.textContent = 'Listening...';
+                                }, 2000);
+                            });
+                        });
+                    }
+                });
+            }
+            
             currentTranscription = transcript;
             console.log('recognition.onresult: currentTranscription:', currentTranscription);
             output.textContent = currentTranscription;
-            
             
         } catch (error) {
             console.error('Error processing recognition result:', error);
