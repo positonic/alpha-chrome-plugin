@@ -8,6 +8,8 @@ let isListening = false;
 let recognition;
 let currentSessionId = null;  // Store the current session ID
 let currentTranscription = ''; // Keep track of accumulated transcription
+let lastScreenshotTime = 0;
+const SCREENSHOT_COOLDOWN = 2000; // 2 seconds cooldown
 
 // Add this near the top with other utility functions
 async function getApiKey() {
@@ -119,15 +121,16 @@ function initializeSpeechRecognition() {
     recognition.onresult = (event) => {
         console.log('recognition.onresult: Got recognition result', getNow());
         try {
-            const transcript = Array.from(event.results)
+            let transcript = Array.from(event.results)
                 .map(result => result[0])
                 .map(result => result.transcript)
                 .join(' ');
             
-            console.log('recognition.onresult: Transcript:', transcript);
+            console.log('recognition.onresult: Original transcript:', transcript);
             
-            // Check for screenshot command
-            if (transcript.toLowerCase().includes('take screenshot')) {
+            // Check for screenshot commands
+            const transcriptLower = transcript.toLowerCase();
+            if (transcriptLower.includes('take screenshot') || transcriptLower.includes('take a screenshot')) {
                 chrome.tabs.query({active: true, lastFocusedWindow: true}, function(tabs) {
                     if (tabs[0]) {
                         chrome.windows.get(tabs[0].windowId, function(parentWindow) {
@@ -144,6 +147,16 @@ function initializeSpeechRecognition() {
                                 // Save to server
                                 const saved = await saveScreenshot(dataUrl);
                                 
+                                // Replace both possible commands with marker in the transcript
+                                transcript = transcriptLower
+                                    .replace('take screenshot', '[SCREENSHOT]')
+                                    .replace('take a screenshot', '[SCREENSHOT]');
+                                currentTranscription = transcript;
+                                output.textContent = currentTranscription;
+                                
+                                // Stop recognition - onend will handle saving and restarting
+                                recognition.stop();
+                                
                                 // Update status
                                 status.textContent = saved ? 'Screenshot saved locally and to server!' : 'Screenshot saved locally (server save failed)';
                                 setTimeout(() => {
@@ -153,11 +166,12 @@ function initializeSpeechRecognition() {
                         });
                     }
                 });
+            } else {
+                currentTranscription = transcript;
+                output.textContent = currentTranscription;
             }
             
-            currentTranscription = transcript;
-            console.log('recognition.onresult: currentTranscription:', currentTranscription);
-            output.textContent = currentTranscription;
+            console.log('recognition.onresult: Final transcript:', transcript);
             
         } catch (error) {
             console.error('Error processing recognition result:', error);
