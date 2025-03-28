@@ -124,7 +124,8 @@ function initializeSpeechRecognition() {
                 .join(' ');
             
             console.log('recognition.onresult: Transcript:', transcript);
-            currentTranscription = currentTranscription === "" ? transcript : currentTranscription + " " + transcript; 
+            //currentTranscription = currentTranscription === "" ? transcript : currentTranscription + " " + transcript; 
+            currentTranscription = transcript;
             console.log('recognition.onresult: currentTranscription:', currentTranscription);
             output.textContent = currentTranscription;
             

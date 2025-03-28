@@ -19,6 +19,11 @@
         "extension_pages": "script-src 'self'; object-src 'self'; media-src 'self' https: http:"
     },
     "web_accessible_resources": [{
+        "resources": [
+          "dictation.html",
+          "dictation.js",
+          "timeout.mp3"
+        ],
         "matches": ["<all_urls>"]
     }]
 }
