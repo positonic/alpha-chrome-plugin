@@ -6,7 +6,8 @@
     "permissions": [
         "activeTab",
         "scripting",
-        "tabs"
+        "tabs",
+        "storage"
     ],
     "host_permissions": [
         "<all_urls>"
@@ -18,7 +19,6 @@
         "extension_pages": "script-src 'self'; object-src 'self'; media-src 'self' https: http:"
     },
     "web_accessible_resources": [{
-        "resources": ["timeout.mp3"],
         "matches": ["<all_urls>"]
     }]
 }

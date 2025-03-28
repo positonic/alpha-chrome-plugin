@@ -11,11 +11,66 @@ let recognition;
 
 console.log('Extension initialized');
 
-// Modified flow to work with extension limitations
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM fully loaded');
     
-   
+    // Get all required elements
+    const apiKeySection = document.getElementById('api-key-section');
+    const dictationSection = document.getElementById('dictation-section');
+    const apiKeyInput = document.getElementById('api-key-input');
+    const saveApiKeyButton = document.getElementById('save-api-key');
+    const apiKeyStatus = document.getElementById('api-key-status');
+    const startDictationButton = document.getElementById('start-dictation');
+
+    // First verify all elements exist
+    if (!apiKeySection || !dictationSection || !apiKeyInput || 
+        !saveApiKeyButton || !apiKeyStatus || !startDictationButton) {
+        console.error('Required elements not found in DOM');
+        return;
+    }
+
+    // Check if API key exists
+    chrome.storage.local.get(['TRANSCRIPTION_API_KEY'], (result) => {
+        if (result.TRANSCRIPTION_API_KEY) {
+            // Hide API key section and show dictation section
+            apiKeySection.classList.add('hidden');
+            dictationSection.classList.remove('hidden');
+            startDictationButton.disabled = false;  // Enable the button
+        } else {
+            // Show API key section and hide dictation section
+            apiKeySection.classList.remove('hidden');
+            dictationSection.classList.add('hidden');
+        }
+    });
+
+    // Handle saving API key
+    saveApiKeyButton.onclick = () => {
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey) {
+            apiKeyStatus.textContent = 'Please enter an API key';
+            return;
+        }
+
+        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey }, () => {
+            apiKeyStatus.textContent = 'API key saved successfully!';
+            // Hide API key section and show dictation section
+            apiKeySection.classList.add('hidden');
+            dictationSection.classList.remove('hidden');
+            startDictationButton.disabled = false;  // Enable the button
+        });
+    };
+
+    // Handle start dictation button
+    startDictationButton.onclick = () => {
+        chrome.windows.create({
+            url: 'dictation.html',
+            type: 'popup',
+            width: 400,
+            height: 300
+        }, () => {
+            window.close();
+        });
+    };
 });
 
 // Open Chrome microphone settings
@@ -321,109 +376,6 @@ function handleMicrophoneError(error) {
     } else {
         output.innerText = `Microphone error: ${error.name} - ${error.message || 'Unknown error'}`;
         permissionStatus.innerHTML = '❌ Microphone error occurred';
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    const startButton = document.getElementById('start-dictation');
-    const permissionButton = document.getElementById('request-permission');
-    const status = document.getElementById('status');
-
-    // Check for microphone permission on load
-    checkMicrophonePermission();
-
-    // Handle permission button click
-    permissionButton.onclick = async () => {
-        try {
-            await requestMicrophonePermission();
-            await checkMicrophonePermission();
-        } catch (error) {
-            console.error('Microphone permission error:', error);
-            status.textContent = 'Error: Could not access microphone';
-        }
-    };
-
-    // Handle start button click - open detached window
-    startButton.onclick = () => {
-        chrome.windows.create({
-            url: 'dictation.html',
-            type: 'popup',
-            width: 400,
-            height: 300
-        }, () => {
-            // Close the popup
-            window.close();
-        });
-    };
-});
-
-// Check microphone permission
-async function checkMicrophonePermission() {
-    const permissionButton = document.getElementById('request-permission');
-    const startButton = document.getElementById('start-dictation');
-    const status = document.getElementById('status');
-
-    try {
-        // Check if the API is supported
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-            status.textContent = 'Media devices API not supported';
-            permissionButton.disabled = true;
-            startButton.disabled = true;
-            return;
-        }
-
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const hasAudioDevice = devices.some(device => device.kind === 'audioinput');
-
-        if (!hasAudioDevice) {
-            status.textContent = 'No microphone detected';
-            permissionButton.disabled = true;
-            startButton.disabled = true;
-            return;
-        }
-
-        const result = await navigator.permissions.query({ name: 'microphone' });
-        
-        switch (result.state) {
-            case 'granted':
-                status.textContent = 'Ready to start';
-                permissionButton.style.display = 'none';
-                startButton.disabled = false;
-                break;
-            case 'prompt':
-                status.textContent = 'Microphone permission needed';
-                permissionButton.style.display = 'block';
-                startButton.disabled = true;
-                break;
-            case 'denied':
-                status.textContent = 'Microphone access denied';
-                permissionButton.style.display = 'block';
-                startButton.disabled = true;
-                break;
-        }
-    } catch (error) {
-        console.error('Error checking permission:', error);
-        status.textContent = 'Error checking microphone permission';
-        startButton.disabled = true;
-    }
-}
-
-// Request microphone permission
-async function requestMicrophonePermission() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }
-        });
-        // Stop the stream immediately, we just needed permission
-        stream.getTracks().forEach(track => track.stop());
-        return true;
-    } catch (error) {
-        console.error('Error requesting permission:', error);
-        throw error;
     }
 }
 

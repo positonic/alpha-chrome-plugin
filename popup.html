@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Voice Dictation Extension</title>
+    <title>Alpha Trader</title>
     <style>
       body { 
         font-family: sans-serif; 
@@ -108,6 +108,17 @@
       .mt-10 {
         margin-top: 10px;
       }
+      .api-key-section {
+        margin: 20px;
+      }
+      .api-key-input {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 10px;
+      }
+      .hidden {
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -115,12 +126,18 @@
     
     <div id="status"></div>
     
-    <!-- These are the two key buttons we need -->
-    <button id="request-permission">Allow Microphone Access</button>
-    <br/>
-    <button id="start-dictation" disabled>Start Dictation</button>
-    
-    <p>This will open a new window which remains open while you dictate. You can close it when you're done.</p>
+    <!-- API Key Section -->
+    <div id="api-key-section">
+        <h2>API Key Required</h2>
+        <input type="text" id="api-key-input" placeholder="Enter your API key">
+        <button id="save-api-key">Save API Key</button>
+        <div id="api-key-status"></div>
+    </div>
+
+    <!-- Dictation Section -->
+    <div id="dictation-section" class="hidden">
+        <button id="start-dictation">Start Dictation</button>
+    </div>
 
     <script src="popup.js"></script>
   </body>

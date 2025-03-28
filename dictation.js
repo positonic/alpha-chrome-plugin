@@ -2,12 +2,24 @@ const toggleButton = document.getElementById('toggleDictation');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
 const minimizeButton = document.querySelector('.minimize');
-const timeoutSound = new Audio('timeout.mp3'); // or 'timeout.wav'
 
 let isListening = false;
 let recognition;
 let currentSessionId = null;  // Store the current session ID
 let currentTranscription = ''; // Keep track of accumulated transcription
+
+// Add this near the top with other utility functions
+async function getApiKey() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['TRANSCRIPTION_API_KEY'], function(result) {
+            if (!result.TRANSCRIPTION_API_KEY) {
+                status.textContent = 'Please set your API key in the extension popup';
+                throw new Error('API key not set');
+            }
+            resolve(result.TRANSCRIPTION_API_KEY);
+        });
+    });
+}
 
 // Add this function near the top of the file with other utility functions
 function getNow() {
@@ -58,21 +70,31 @@ function initializeSpeechRecognition() {
         if (event.error === 'network') {
             console.log('onerror: Network error');
             // For network errors, try to restart after a short delay
-            status.textContent = 'Network error - attempting to reconnect...';
-            if (isListening) {
-                setTimeout(() => {
-                    if (isListening) {  // Check if we're still supposed to be listening
-                        console.log('onerror: Restarting recognition');
-                        recognition.start();
-                    }
-                }, 1000);  // Wait 1 second before retrying
-            }
+            // status.textContent = 'Network error - attempting to reconnect...';
+            // if (isListening) {
+            //     setTimeout(() => {
+            //         console.log('onerror: isListening:', isListening);
+                        
+            //         if (isListening && recognition.state === 'inactive') {  // Only restart if inactive
+            //             console.log('onerror: Recognition state:', recognition.state);
+            //             console.log('onerror: Restarting recognition');
+            //             recognition.start();
+            //         } else {
+            //             console.log('onerror: Cannot restart recognition - current state:', recognition.state);
+            //             // If we can't restart, we should probably stop listening
+            //             //stopListening();
+            //             console.log('onerror: not doing anything.... CAN THIS HAPPEN?');
+            //         }
+            //     }, 500);  // Wait before retrying
+            // }
         } else {
-            // For other errors, save and stop as before
-            if (currentSessionId && currentTranscription) {
-                await saveTranscription(currentSessionId, currentTranscription);
-            }
-            stopListening();
+            console.log('onerror: Other error!!!');
+                        
+            // // For other errors, save and stop as before
+            // if (currentSessionId && currentTranscription) {
+            //     await saveTranscription(currentSessionId, currentTranscription);
+            // }
+            // stopListening();
         }
     };
 
@@ -89,7 +111,6 @@ function initializeSpeechRecognition() {
         if (isListening) {
             console.log('onend: Restarting recognition');
             // Only restart if this was a timeout
-            timeoutSound.play().catch(err => console.log('onend: Could not play sound:', err));
             recognition.start();
         }
     };
@@ -102,9 +123,10 @@ function initializeSpeechRecognition() {
                 .map(result => result.transcript)
                 .join(' ');
             
-            console.log('Transcript:', transcript);
-            currentTranscription = transcript; // Update current transcription
-            output.textContent = transcript;
+            console.log('recognition.onresult: Transcript:', transcript);
+            currentTranscription = currentTranscription === "" ? transcript : currentTranscription + " " + transcript; 
+            console.log('recognition.onresult: currentTranscription:', currentTranscription);
+            output.textContent = currentTranscription;
             
             
         } catch (error) {
@@ -142,22 +164,26 @@ function insertText(text) {
 async function startListening() {
     console.log('startListening: Starting listening');
     try {
+        // Get API key first
+        const apiKey = await getApiKey();
+        
         // Clear the output display immediately
         output.textContent = '';
         
-        // Start a new session first
-        const response = await fetch('http://localhost:3000/api/trpc/transcription.startSession', {
+        // Start a new session first with API key in header
+        const response = await fetch('https://thehaven-hq.vercel.app/api/trpc/transcription.startSession', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'x-api-key': apiKey
             },
             body: JSON.stringify({})
         });
         const data = await response.json();
         console.log('startListening: Response:', data);
-        currentSessionId = data.result.data.id;  // Changed from sessionId to id
+        currentSessionId = data.result.data.json.id;  // Make sure this matches the API response structure
         console.log('startListening: Current session ID:', currentSessionId);
-        
+
         // Request microphone access
         const stream = await navigator.mediaDevices.getUserMedia({ 
             audio: {
@@ -185,25 +211,32 @@ async function startListening() {
 }
 
 // Save transcription to server
-async function saveTranscription(id, transcriptionText) {  // Changed parameter name to match
+async function saveTranscription(id, transcriptionText) {
     console.log('Saving transcription:', id, transcriptionText);
     try {
-        const response = await fetch('http://localhost:3000/api/trpc/transcription.saveTranscription', {
+        const apiKey = await getApiKey();
+        
+        const response = await fetch('https://thehaven-hq.vercel.app/api/trpc/transcription.saveTranscription', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'x-api-key': apiKey
             },
             body: JSON.stringify({
                 json: {
-                    id,  // Changed from sessionId to id
+                    id,
                     transcription: transcriptionText
                 }
             })
         });
         const data = await response.json();
+        console.log('saveTranscription: Response:', data);
         return data.result.success;
     } catch (error) {
         console.error('Error saving transcription:', error);
+        if (error.message === 'API key not set') {
+            status.textContent = 'Please set your API key in the extension popup';
+        }
         return false;
     }
 }
