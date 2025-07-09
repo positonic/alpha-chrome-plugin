@@ -3,6 +3,8 @@ const output = document.getElementById('output');
 const status = document.getElementById('status');
 const minimizeButton = document.querySelector('.minimize');
 const shutterSound = new Audio('shutter.mp3');
+const apiBaseURL = "https://thehaven-hq.vercel.app";
+//const apiBaseURL = "http://localhost:3000";
 
 let isListening = false;
 let recognition;
@@ -213,9 +215,11 @@ async function startListening() {
         
         // Clear the output display immediately
         output.textContent = '';
+
+        console.log('url is: ', `${apiBaseURL}/api/trpc/transcription.startSession`)
         
         // Start a new session first with API key in header
-        const response = await fetch('https://thehaven-hq.vercel.app/api/trpc/transcription.startSession', {
+        const response = await fetch(`${apiBaseURL}/api/trpc/transcription.startSession`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -260,7 +264,7 @@ async function saveTranscription(id, transcriptionText) {
     try {
         const apiKey = await getApiKey();
         
-        const response = await fetch('https://thehaven-hq.vercel.app/api/trpc/transcription.saveTranscription', {
+        const response = await fetch(`${apiBaseURL}/api/trpc/transcription.saveTranscription`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -300,7 +304,7 @@ async function saveScreenshot(dataUrl) {
         // Convert base64 data URL to binary data
         const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
         
-        const response = await fetch('https://thehaven-hq.vercel.app/api/trpc/transcription.saveScreenshot', {
+        const response = await fetch(`${apiBaseURL}/api/trpc/transcription.saveScreenshot`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
