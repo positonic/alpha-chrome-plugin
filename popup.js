@@ -16,29 +16,39 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Get all required elements
     const apiKeySection = document.getElementById('api-key-section');
+    const projectSection = document.getElementById('project-section');
     const dictationSection = document.getElementById('dictation-section');
     const apiKeyInput = document.getElementById('api-key-input');
     const saveApiKeyButton = document.getElementById('save-api-key');
     const apiKeyStatus = document.getElementById('api-key-status');
+    const projectDropdown = document.getElementById('project-dropdown');
+    const projectStatus = document.getElementById('project-status');
     const startDictationButton = document.getElementById('start-dictation');
 
     // First verify all elements exist
-    if (!apiKeySection || !dictationSection || !apiKeyInput || 
-        !saveApiKeyButton || !apiKeyStatus || !startDictationButton) {
+    if (!apiKeySection || !projectSection || !dictationSection || !apiKeyInput || 
+        !saveApiKeyButton || !apiKeyStatus || !projectDropdown || !projectStatus || !startDictationButton) {
         console.error('Required elements not found in DOM');
         return;
     }
 
-    // Check if API key exists
-    chrome.storage.local.get(['TRANSCRIPTION_API_KEY'], (result) => {
+    // Check if API key and project are configured
+    chrome.storage.local.get(['TRANSCRIPTION_API_KEY', 'SELECTED_PROJECT_ID'], (result) => {
         if (result.TRANSCRIPTION_API_KEY) {
-            // Hide API key section and show dictation section
+            // Hide API key section and show project section
             apiKeySection.classList.add('hidden');
-            dictationSection.classList.remove('hidden');
-            startDictationButton.disabled = false;  // Enable the button
+            projectSection.classList.remove('hidden');
+            
+            // If project is already selected, show dictation section
+            if (result.SELECTED_PROJECT_ID) {
+                projectDropdown.value = result.SELECTED_PROJECT_ID;
+                dictationSection.classList.remove('hidden');
+                startDictationButton.disabled = false;
+            }
         } else {
-            // Show API key section and hide dictation section
+            // Show API key section and hide other sections
             apiKeySection.classList.remove('hidden');
+            projectSection.classList.add('hidden');
             dictationSection.classList.add('hidden');
         }
     });
@@ -53,11 +63,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
         chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey }, () => {
             apiKeyStatus.textContent = 'API key saved successfully!';
-            // Hide API key section and show dictation section
+            // Hide API key section and show project section
             apiKeySection.classList.add('hidden');
-            dictationSection.classList.remove('hidden');
-            startDictationButton.disabled = false;  // Enable the button
+            projectSection.classList.remove('hidden');
         });
+    };
+
+    // Handle project selection
+    projectDropdown.onchange = () => {
+        const selectedProjectId = projectDropdown.value;
+        if (selectedProjectId) {
+            chrome.storage.local.set({ 'SELECTED_PROJECT_ID': selectedProjectId }, () => {
+                projectStatus.textContent = 'Project selected!';
+                // Show dictation section but keep project section visible
+                dictationSection.classList.remove('hidden');
+                startDictationButton.disabled = false;
+            });
+        } else {
+            projectStatus.textContent = 'Please select a project';
+            dictationSection.classList.add('hidden');
+            startDictationButton.disabled = true;
+        }
     };
 
     // Handle start dictation button

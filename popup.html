@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Alpha Trader</title>
+    <title>Alpha Whisper</title>
     <style>
       body { 
         font-family: sans-serif; 
@@ -11,7 +11,7 @@
       button { 
         margin-bottom: 10px;
         padding: 8px 16px;
-        background: #4285f4;
+        background: #3E80F6;
         color: white;
         border: none;
         border-radius: 4px;
@@ -116,13 +116,21 @@
         padding: 8px;
         margin-bottom: 10px;
       }
+      select {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
       .hidden {
         display: none;
       }
     </style>
   </head>
   <body>
-    <h1>Alpha Trader</h1>
+    <h1>Alpha Whisper</h1>
     
     <div id="status"></div>
     
@@ -132,6 +140,19 @@
         <input type="text" id="api-key-input" placeholder="Enter your API key">
         <button id="save-api-key">Save API Key</button>
         <div id="api-key-status"></div>
+    </div>
+
+    <!-- Project Selection Section -->
+    <div id="project-section" class="hidden">
+        <h2>Select Project</h2>
+        <select id="project-dropdown">
+            <option value="">Select a project...</option>
+            <option value="cm7exh1nc0000xv7xfvmspmt3">Exponential</option>
+            <option value="cm7i1nmhd0007116z5iqs6fok">Akashic</option>
+            <option value="cm7lm6qql0000yyh0bstdkqt9">Tradescape</option>
+            <option value="cmd2xuzq200021tykblvurm90">Trading</option>
+        </select>
+        <div id="project-status"></div>
     </div>
 
     <!-- Dictation Section -->

@@ -26,6 +26,21 @@ async function getApiKey() {
     });
 }
 
+async function getProjectId() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['SELECTED_PROJECT_ID'], function(result) {
+            console.log('getProjectId: Retrieved from storage:', result);
+            if (!result.SELECTED_PROJECT_ID) {
+                console.log('getProjectId: No project ID found in storage');
+                status.textContent = 'Please select a project in the extension popup';
+                throw new Error('Project not selected');
+            }
+            console.log('getProjectId: Returning project ID:', result.SELECTED_PROJECT_ID);
+            resolve(result.SELECTED_PROJECT_ID);
+        });
+    });
+}
+
 // Add this function near the top of the file with other utility functions
 function getNow() {
     const now = new Date();
@@ -210,22 +225,31 @@ function insertText(text) {
 async function startListening() {
     console.log('startListening: Starting listening');
     try {
-        // Get API key first
+        // Get API key and project ID first
         const apiKey = await getApiKey();
+        const projectId = await getProjectId();
         
         // Clear the output display immediately
         output.textContent = '';
 
         console.log('url is: ', `${apiBaseURL}/api/trpc/transcription.startSession`)
+        console.log('startListening: Project ID being sent:', projectId);
         
-        // Start a new session first with API key in header
+        const requestBody = {
+            json: {
+                projectId: projectId
+            }
+        };
+        console.log('startListening: Request body:', JSON.stringify(requestBody));
+        
+        // Start a new session first with API key in header and project ID in body
         const response = await fetch(`${apiBaseURL}/api/trpc/transcription.startSession`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'x-api-key': apiKey
             },
-            body: JSON.stringify({})
+            body: JSON.stringify(requestBody)
         });
         const data = await response.json();
         console.log('startListening: Response:', data);
