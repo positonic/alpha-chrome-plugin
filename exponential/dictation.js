@@ -1,6 +1,7 @@
 const toggleButton = document.getElementById('toggleDictation');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
+const sessionUrl = document.getElementById('session-url');
 // Minimize button removed
 const shutterSound = new Audio('../shared/shutter.mp3');
 
@@ -72,10 +73,11 @@ function initializeSpeechRecognition() {
 
     recognition.onstart = () => {
         console.log('Recognition started');
-        status.textContent = 'Listening...';
+        status.textContent = 'Recording...';
         status.className = 'listening';
-        toggleButton.textContent = 'Stop Listening';
-        toggleButton.style.backgroundColor = '#ff4444';  // Red when listening
+        toggleButton.textContent = 'Stop Recording';
+        toggleButton.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+        toggleButton.style.boxShadow = '0 4px 12px rgba(220, 53, 69, 0.3)';
         isListening = true;
     };
 
@@ -226,8 +228,9 @@ async function startListening() {
         const apiKey = await getApiKey();
         const projectId = await getProjectId();
         
-        // Clear the output display immediately
+        // Clear the output display immediately and hide session link
         output.textContent = '';
+        sessionUrl.style.display = 'none';
 
         console.log('url is: ', `${apiBaseURL}/api/trpc/transcription.startSession`)
         console.log('startListening: Project ID being sent:', projectId);
@@ -252,6 +255,10 @@ async function startListening() {
         console.log('startListening: Response:', data);
         currentSessionId = data.result.data.json.id;  // Make sure this matches the API response structure
         console.log('startListening: Current session ID:', currentSessionId);
+        
+        // Store session URL but don't show yet
+        const sessionLinkUrl = `${apiBaseURL}/session/${currentSessionId}`;
+        sessionUrl.href = sessionLinkUrl;
 
         // Request microphone access
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -356,8 +363,13 @@ async function stopListening() {
     }
     status.textContent = 'Ready';
     status.className = '';
-    toggleButton.textContent = 'Start Listening';
-    toggleButton.style.backgroundColor = '#44ff44';  // Green when not listening
+    toggleButton.textContent = 'Start Recording';
+    toggleButton.style.background = 'linear-gradient(135deg, #64A1F8 0%, #4F89E8 100%)';
+    toggleButton.style.boxShadow = '0 4px 12px rgba(100, 161, 248, 0.3)';
+    // Show session link now that recording is finished
+    if (currentSessionId) {
+        sessionUrl.style.display = 'inline';
+    }
 }
 
 // Toggle listening state
@@ -372,5 +384,6 @@ toggleButton.onclick = () => {
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
     status.textContent = 'Ready';
-    toggleButton.style.backgroundColor = '#44ff44';  // Set initial green color
+    toggleButton.style.background = 'linear-gradient(135deg, #64A1F8 0%, #4F89E8 100%)';
+    toggleButton.style.boxShadow = '0 4px 12px rgba(100, 161, 248, 0.3)';
 }); 

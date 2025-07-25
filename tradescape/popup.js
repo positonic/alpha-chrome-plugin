@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
             url: 'dictation.html',
             type: 'popup',
             width: 400,
-            height: 300
+            height: 400
         }, () => {
             window.close();
         });
