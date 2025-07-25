@@ -1,4 +1,5 @@
 .qodo
 *.zip
 .DS_Store
-AlphaTrader.zipdist/
+AlphaTrader.zip
+dist/

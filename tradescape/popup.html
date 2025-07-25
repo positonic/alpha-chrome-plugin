@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Tradescape</title>
+    <style>
+      body { 
+        font-family: sans-serif; 
+        padding: 10px; 
+        width: 380px; 
+      }
+      button { 
+        margin-bottom: 10px;
+        padding: 8px 16px;
+        background: #3E80F6;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        width: 100%;
+      }
+      button:hover {
+        background: #3367d6;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      #status { 
+        white-space: pre-wrap; 
+        margin-bottom: 10px;
+        padding: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+        min-height: 60px;
+        line-height: 1.5;
+      }
+      .api-key-input {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      .hidden {
+        display: none;
+      }
+      .clear-token-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        margin-left: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .clear-token-btn:hover {
+        background: #c82333;
+      }
+      .inline-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .api-key-container {
+        position: relative;
+        margin-bottom: 10px;
+      }
+      .api-key-container input {
+        padding-right: 40px;
+      }
+      .clear-api-key-btn {
+        position: absolute;
+        right: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 5px;
+        font-size: 16px;
+        color: #666;
+        display: none;
+      }
+      .clear-api-key-btn:hover {
+        color: #dc3545;
+      }
+      .api-key-container.has-value .clear-api-key-btn {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tradescape</h1>
+    
+    <div id="status"></div>
+    
+    <!-- API Key Section -->
+    <div id="api-key-section">
+        <h2>API Key Required</h2>
+        <div class="api-key-container" id="api-key-container">
+            <input type="text" id="api-key-input" class="api-key-input" placeholder="Enter your API key">
+            <button id="clear-api-key" class="clear-api-key-btn" title="Clear API Key">✕</button>
+        </div>
+        <button id="save-api-key">Save API Key</button>
+        <div id="api-key-status"></div>
+    </div>
+
+    <!-- Dictation Section (No project selection needed) -->
+    <div id="dictation-section" class="hidden">
+        <button id="clear-token-dictation" class="clear-token-btn" title="Clear API Token" style="width: auto; margin-bottom: 15px;">🗑️ Clear Token</button>
+        <button id="start-dictation">Start Dictation</button>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
