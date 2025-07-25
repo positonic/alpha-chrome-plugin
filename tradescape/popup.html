@@ -75,37 +75,34 @@
         padding-right: 40px;
       }
       .clear-api-key-btn {
-        position: absolute;
-        right: 5px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: transparent;
+        background: #dc3545;
+        color: white;
         border: none;
+        border-radius: 4px;
         cursor: pointer;
-        padding: 5px;
-        font-size: 16px;
-        color: #666;
-        display: none;
+        padding: 6px 12px;
+        font-size: 14px;
+        width: auto;
+        margin-bottom: 10px;
       }
       .clear-api-key-btn:hover {
-        color: #dc3545;
-      }
-      .api-key-container.has-value .clear-api-key-btn {
-        display: block;
+        background: #c82333;
       }
     </style>
   </head>
   <body>
-    <h1>Tradescape</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1 style="margin: 0;">Tradescape!</h1>
+        <button border="1px solid red" id="clear-api-key" class="clear-api-key-btn" title="Clear API Key" style="margin: 0;">🗑️ Clear API</button>
+    </div>
     
     <div id="status"></div>
-    
+       
     <!-- API Key Section -->
     <div id="api-key-section">
         <h2>API Key Required</h2>
         <div class="api-key-container" id="api-key-container">
             <input type="text" id="api-key-input" class="api-key-input" placeholder="Enter your API key">
-            <button id="clear-api-key" class="clear-api-key-btn" title="Clear API Key">✕</button>
         </div>
         <button id="save-api-key">Save API Key</button>
         <div id="api-key-status"></div>

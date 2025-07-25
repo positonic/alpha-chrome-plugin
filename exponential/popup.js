@@ -112,9 +112,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle clear API key button (X button in input field)
     clearApiKeyButton.onclick = () => {
-        apiKeyInput.value = '';
-        apiKeyContainer.classList.remove('has-value');
-        apiKeyStatus.textContent = '';
+        if (confirm('Are you sure you want to clear the API key?')) {
+            chrome.storage.local.remove(['TRANSCRIPTION_API_KEY', 'SELECTED_PROJECT_ID'], () => {
+                // Reset UI to initial state
+                apiKeySection.classList.remove('hidden');
+                projectSection.classList.add('hidden');
+                dictationSection.classList.add('hidden');
+                apiKeyInput.value = '';
+                apiKeyContainer.classList.remove('has-value');
+                apiKeyStatus.textContent = 'API key cleared';
+                projectDropdown.value = '';
+                projectStatus.textContent = '';
+            });
+        }
     };
 
     // Handle clear token button
