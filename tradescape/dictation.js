@@ -1,8 +1,8 @@
 const toggleButton = document.getElementById('toggleDictation');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
-const minimizeButton = document.querySelector('.minimize');
-const shutterSound = new Audio('../shared/shutter.mp3');
+// Minimize button removed
+const shutterSound = new Audio('shutter.mp3');
 
 // Load config - this will be loaded from config.js
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
@@ -41,11 +41,7 @@ function getNow() {
     return `${month}/${day} ${hours}:${minutes}:${seconds}`;
 }
 
-// Handle minimize button
-minimizeButton.onclick = () => {
-    window.innerWidth = 100;
-    window.innerHeight = 100;
-};
+// Minimize button removed
 
 // Initialize speech recognition
 function initializeSpeechRecognition() {
@@ -223,7 +219,7 @@ async function startListening() {
         
         const requestBody = {
             json: {
-                projectId: null // Tradescape doesn't use projects
+                projectId: "default" // Tradescape uses a default project
             }
         };
         console.log('startListening: Request body:', JSON.stringify(requestBody));
@@ -237,9 +233,21 @@ async function startListening() {
             },
             body: JSON.stringify(requestBody)
         });
+        
+        console.log('startListening: Response status:', response.status);
         const data = await response.json();
         console.log('startListening: Response:', data);
-        currentSessionId = data.result.data.json.id;  // Make sure this matches the API response structure
+        console.log('startListening: Full response structure:', JSON.stringify(data, null, 2));
+        
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status}: ${data.error?.message || JSON.stringify(data)}`);
+        }
+        
+        if (!data.result || !data.result.data || !data.result.data.json) {
+            throw new Error(`Unexpected response structure: ${JSON.stringify(data)}`);
+        }
+        
+        currentSessionId = data.result.data.json.id;
         console.log('startListening: Current session ID:', currentSessionId);
 
         // Request microphone access

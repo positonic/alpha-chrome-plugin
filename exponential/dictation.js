@@ -1,7 +1,7 @@
 const toggleButton = document.getElementById('toggleDictation');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
-const minimizeButton = document.querySelector('.minimize');
+// Minimize button removed
 const shutterSound = new Audio('../shared/shutter.mp3');
 
 // Load config - this will be loaded from config.js
@@ -54,11 +54,7 @@ function getNow() {
     return `${month}/${day} ${hours}:${minutes}:${seconds}`;
 }
 
-// Handle minimize button
-minimizeButton.onclick = () => {
-    window.innerWidth = 100;
-    window.innerHeight = 100;
-};
+// Minimize button removed
 
 // Initialize speech recognition
 function initializeSpeechRecognition() {
