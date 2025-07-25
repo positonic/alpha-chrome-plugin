@@ -2,9 +2,10 @@ const toggleButton = document.getElementById('toggleDictation');
 const output = document.getElementById('output');
 const status = document.getElementById('status');
 const minimizeButton = document.querySelector('.minimize');
-const shutterSound = new Audio('shutter.mp3');
-const apiBaseURL = "https://thehaven-hq.vercel.app";
-//const apiBaseURL = "http://localhost:3000";
+const shutterSound = new Audio('../shared/shutter.mp3');
+
+// Load config - this will be loaded from config.js
+const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
 
 let isListening = false;
 let recognition;

@@ -16,17 +16,17 @@
     "action": {
       "default_popup": "popup.html",
       "default_icon": {
-        "16": "expo-logo-16.png",
-        "32": "expo-logo-32.png",
-        "48": "expo-logo-48.png",
-        "128": "expo-logo-128.png"
+        "16": "icons/expo-logo-16.png",
+        "32": "icons/expo-logo-32.png",
+        "48": "icons/expo-logo-48.png",
+        "128": "icons/expo-logo-128.png"
       }
     },
     "icons": {
-      "16": "expo-logo-16.png",
-      "32": "expo-logo-32.png",
-      "48": "expo-logo-48.png",
-      "128": "expo-logo-128.png"
+      "16": "icons/expo-logo-16.png",
+      "32": "icons/expo-logo-32.png",
+      "48": "icons/expo-logo-48.png",
+      "128": "icons/expo-logo-128.png"
     },
     "content_security_policy": {
         "extension_pages": "script-src 'self'; object-src 'self'; media-src 'self' https: http:"
@@ -35,8 +35,10 @@
         "resources": [
           "dictation.html",
           "dictation.js",
-          "timeout.mp3",
-          "shutter.mp3"
+          "config.js",
+          "popup.js",
+          "icons/*",
+          "../shared/*"
         ],
         "matches": ["<all_urls>"]
     }]
