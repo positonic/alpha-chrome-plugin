@@ -32,8 +32,9 @@
         padding: 10px;
         background: #f5f5f5;
         border-radius: 4px;
-        min-height: 60px;
+        min-height: 0px;
         line-height: 1.5;
+        display: none;
       }
       .api-key-input {
         width: 100%;
@@ -75,25 +76,30 @@
         padding-right: 40px;
       }
       .clear-api-key-btn {
-        background: #dc3545;
-        color: white;
-        border: none;
+        background: #f8f9fa;
+        color: #6c757d;
+        border: 1px solid #dee2e6;
         border-radius: 4px;
         cursor: pointer;
-        padding: 6px 12px;
-        font-size: 14px;
+        padding: 4px 8px;
+        font-size: 12px;
         width: auto;
         margin-bottom: 10px;
+        display: none;
       }
       .clear-api-key-btn:hover {
-        background: #c82333;
+        background: #e9ecef;
+        color: #495057;
       }
     </style>
   </head>
   <body>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h1 style="margin: 0;">Tradescape!</h1>
-        <button border="1px solid red" id="clear-api-key" class="clear-api-key-btn" title="Clear API Key" style="margin: 0;">🗑️ Clear API</button>
+        <div>
+            <h1 style="margin: 0;">Tradescape</h1>
+            <div id="test-mode-indicator" style="font-size: 10px; color: orange; font-weight: bold; display: none;"></div>
+        </div>
+        <button id="clear-api-key" class="clear-api-key-btn" title="Clear API Key" style="margin: 0;">✕ Clear</button>
     </div>
     
     <div id="status"></div>
@@ -110,7 +116,6 @@
 
     <!-- Dictation Section (No project selection needed) -->
     <div id="dictation-section" class="hidden">
-        <button id="clear-token-dictation" class="clear-token-btn" title="Clear API Token" style="width: auto; margin-bottom: 15px;">🗑️ Clear Token</button>
         <button id="start-dictation">Start Dictation</button>
     </div>
 

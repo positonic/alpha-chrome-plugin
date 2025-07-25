@@ -222,7 +222,9 @@ async function startListening() {
         console.log('url is: ', `${apiBaseURL}/api/trpc/transcription.startSession`)
         
         const requestBody = {
-            json: {}
+            json: {
+                projectId: null // Tradescape doesn't use projects
+            }
         };
         console.log('startListening: Request body:', JSON.stringify(requestBody));
         

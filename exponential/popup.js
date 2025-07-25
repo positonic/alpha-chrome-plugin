@@ -27,6 +27,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const clearTokenButton = document.getElementById('clear-token-project');
     const clearApiKeyButton = document.getElementById('clear-api-key');
     const apiKeyContainer = document.getElementById('api-key-container');
+    const testModeIndicator = document.getElementById('test-mode-indicator');
+
+    // Check if we're in test mode and show indicator
+    if (EXTENSION_CONFIG.apiBaseURL.includes('localhost')) {
+        const url = new URL(EXTENSION_CONFIG.apiBaseURL);
+        testModeIndicator.textContent = `TEST MODE - Port ${url.port}`;
+        testModeIndicator.style.display = 'block';
+    }
 
     // First verify all elements exist
     if (!apiKeySection || !projectSection || !dictationSection || !apiKeyInput || 
@@ -50,6 +58,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Hide API key section and show project section
             apiKeySection.classList.add('hidden');
             projectSection.classList.remove('hidden');
+            // Show clear button when API key exists
+            clearApiKeyButton.style.display = 'inline-block';
             
             // If project is already selected, show dictation section
             if (result.SELECTED_PROJECT_ID) {
@@ -62,6 +72,8 @@ document.addEventListener('DOMContentLoaded', function() {
             apiKeySection.classList.remove('hidden');
             projectSection.classList.add('hidden');
             dictationSection.classList.add('hidden');
+            // Hide clear button when no API key
+            clearApiKeyButton.style.display = 'none';
         }
     });
 
@@ -78,6 +90,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Hide API key section and show project section
             apiKeySection.classList.add('hidden');
             projectSection.classList.remove('hidden');
+            // Show clear button when API key is saved
+            clearApiKeyButton.style.display = 'inline-block';
         });
     };
 
@@ -123,6 +137,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 apiKeyStatus.textContent = 'API key cleared';
                 projectDropdown.value = '';
                 projectStatus.textContent = '';
+                // Hide clear button when API key is cleared
+                clearApiKeyButton.style.display = 'none';
             });
         }
     };

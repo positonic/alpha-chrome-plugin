@@ -10,13 +10,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveApiKeyButton = document.getElementById('save-api-key');
     const apiKeyStatus = document.getElementById('api-key-status');
     const startDictationButton = document.getElementById('start-dictation');
-    const clearTokenButton = document.getElementById('clear-token-dictation');
     const clearApiKeyButton = document.getElementById('clear-api-key');
     const apiKeyContainer = document.getElementById('api-key-container');
+    const testModeIndicator = document.getElementById('test-mode-indicator');
+
+    // Check if we're in test mode and show indicator
+    if (EXTENSION_CONFIG.apiBaseURL.includes('localhost')) {
+        const url = new URL(EXTENSION_CONFIG.apiBaseURL);
+        testModeIndicator.textContent = `TEST MODE - Port ${url.port}`;
+        testModeIndicator.style.display = 'block';
+    }
 
     // First verify all elements exist
     if (!apiKeySection || !dictationSection || !apiKeyInput || 
-        !saveApiKeyButton || !apiKeyStatus || !startDictationButton || !clearTokenButton || !clearApiKeyButton || !apiKeyContainer) {
+        !saveApiKeyButton || !apiKeyStatus || !startDictationButton || !clearApiKeyButton || !apiKeyContainer) {
         console.error('Required elements not found in DOM');
         return;
     }
@@ -37,10 +44,14 @@ document.addEventListener('DOMContentLoaded', function() {
             apiKeySection.classList.add('hidden');
             dictationSection.classList.remove('hidden');
             startDictationButton.disabled = false;
+            // Show clear button when API key exists
+            clearApiKeyButton.style.display = 'inline-block';
         } else {
             // Show API key section and hide dictation section
             apiKeySection.classList.remove('hidden');
             dictationSection.classList.add('hidden');
+            // Hide clear button when no API key
+            clearApiKeyButton.style.display = 'none';
         }
     });
 
@@ -58,6 +69,8 @@ document.addEventListener('DOMContentLoaded', function() {
             apiKeySection.classList.add('hidden');
             dictationSection.classList.remove('hidden');
             startDictationButton.disabled = false;
+            // Show clear button when API key is saved
+            clearApiKeyButton.style.display = 'inline-block';
         });
     };
 
@@ -83,21 +96,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 apiKeyInput.value = '';
                 apiKeyContainer.classList.remove('has-value');
                 apiKeyStatus.textContent = 'API key cleared';
+                // Hide clear button when API key is cleared
+                clearApiKeyButton.style.display = 'none';
             });
         }
     };
 
-    // Handle clear token button
-    clearTokenButton.onclick = () => {
-        if (confirm('Are you sure you want to clear the API token? You will need to re-enter it.')) {
-            chrome.storage.local.remove(['TRANSCRIPTION_API_KEY'], () => {
-                // Reset UI to initial state
-                apiKeySection.classList.remove('hidden');
-                dictationSection.classList.add('hidden');
-                apiKeyInput.value = '';
-                apiKeyContainer.classList.remove('has-value');
-                apiKeyStatus.textContent = '';
-            });
-        }
-    };
 });

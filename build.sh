@@ -2,30 +2,27 @@
 
 echo "Building Chrome extensions..."
 
-# Create dist directory
-mkdir -p dist
+# Create dist directories
+mkdir -p dist/exponential
+mkdir -p dist/tradescape
 
 # Copy shared files to both extensions
 echo "Copying shared files..."
 cp -r shared/* exponential/
 cp -r shared/* tradescape/
 
-# Build Exponential extension
+# Copy Exponential extension to dist
 echo "Building Exponential extension..."
-cd exponential
-zip -r ../dist/exponential.zip . -x "*.DS_Store"
-cd ..
+rsync -av --exclude='.DS_Store' exponential/ dist/exponential/
 
-# Build Tradescape extension
+# Copy Tradescape extension to dist
 echo "Building Tradescape extension..."
-cd tradescape
-zip -r ../dist/tradescape.zip . -x "*.DS_Store"
-cd ..
+rsync -av --exclude='.DS_Store' tradescape/ dist/tradescape/
 
-# Clean up copied shared files
+# Clean up copied shared files from source directories
 rm -f exponential/shutter.mp3 exponential/timeout.mp3
 rm -f tradescape/shutter.mp3 tradescape/timeout.mp3
 
 echo "Build complete! Extensions are in the dist/ folder:"
-echo "  - dist/exponential.zip"
-echo "  - dist/tradescape.zip"
+echo "  - dist/exponential/"
+echo "  - dist/tradescape/"
