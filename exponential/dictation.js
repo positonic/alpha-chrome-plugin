@@ -3,7 +3,7 @@ const output = document.getElementById('output');
 const status = document.getElementById('status');
 const sessionUrl = document.getElementById('session-url');
 // Minimize button removed
-const shutterSound = new Audio('../shared/shutter.mp3');
+const shutterSound = new Audio('shutter.mp3');
 
 // Load config - this will be loaded from config.js
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
@@ -308,12 +308,19 @@ async function saveTranscription(id, transcriptionText) {
         const data = await response.json();
         console.log('saveTranscription: Response:', data);
         
-        // Update status to show save was successful
-        if (data.result.success) {
-            status.textContent = 'Listening... (Last save: ' + getNow() + ')';
+        if (!response.ok) {
+            console.error('saveTranscription: Server returned error', response.status, data);
+            status.textContent = 'Error saving transcription (401 - Check server auth)';
+            return false;
         }
         
-        return data.result.success;
+        // Update status to show save was successful
+        if (data.result && data.result.success) {
+            status.textContent = 'Listening... (Last save: ' + getNow() + ')';
+            return true;
+        }
+        
+        return false;
     } catch (error) {
         console.error('Error saving transcription:', error);
         if (error.message === 'API key not set') {

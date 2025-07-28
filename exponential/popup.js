@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const projectDropdown = document.getElementById('project-dropdown');
     const projectStatus = document.getElementById('project-status');
     const startDictationButton = document.getElementById('start-dictation');
-    const clearTokenButton = document.getElementById('clear-token-project');
     const clearApiKeyButton = document.getElementById('clear-api-key');
     const apiKeyContainer = document.getElementById('api-key-container');
     const testModeIndicator = document.getElementById('test-mode-indicator');
@@ -38,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // First verify all elements exist
     if (!apiKeySection || !projectSection || !dictationSection || !apiKeyInput || 
-        !saveApiKeyButton || !apiKeyStatus || !projectDropdown || !projectStatus || !startDictationButton || !clearTokenButton || !clearApiKeyButton || !apiKeyContainer) {
+        !saveApiKeyButton || !apiKeyStatus || !projectDropdown || !projectStatus || !startDictationButton || !clearApiKeyButton || !apiKeyContainer) {
         console.error('Required elements not found in DOM');
         return;
     }
@@ -53,8 +52,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Check if API key and project are configured
-    chrome.storage.local.get(['TRANSCRIPTION_API_KEY', 'SELECTED_PROJECT_ID'], (result) => {
+    chrome.storage.local.get(['TRANSCRIPTION_API_KEY', 'SELECTED_PROJECT_ID'], async (result) => {
         if (result.TRANSCRIPTION_API_KEY) {
+            // Fetch projects and populate dropdown
+            const projects = await fetchProjects(result.TRANSCRIPTION_API_KEY);
+            populateProjectDropdown(projects);
+            
             // Hide API key section and show project section
             apiKeySection.classList.add('hidden');
             projectSection.classList.remove('hidden');
@@ -78,15 +81,27 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Handle saving API key
-    saveApiKeyButton.onclick = () => {
+    saveApiKeyButton.onclick = async () => {
         const apiKey = apiKeyInput.value.trim();
         if (!apiKey) {
             apiKeyStatus.textContent = 'Please enter an API key';
             return;
         }
 
+        apiKeyStatus.textContent = 'Saving API key and loading projects...';
+        
+        // Fetch projects first to validate API key
+        const projects = await fetchProjects(apiKey);
+        
+        if (projects.length === 0) {
+            apiKeyStatus.textContent = 'Invalid API key or no projects found';
+            return;
+        }
+
         chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey }, () => {
             apiKeyStatus.textContent = 'API key saved successfully!';
+            // Populate project dropdown with fetched projects
+            populateProjectDropdown(projects);
             // Hide API key section and show project section
             apiKeySection.classList.add('hidden');
             projectSection.classList.remove('hidden');
@@ -143,22 +158,42 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Handle clear token button
-    clearTokenButton.onclick = () => {
-        if (confirm('Are you sure you want to clear the API token? You will need to re-enter it.')) {
-            chrome.storage.local.remove(['TRANSCRIPTION_API_KEY', 'SELECTED_PROJECT_ID'], () => {
-                // Reset UI to initial state
-                apiKeySection.classList.remove('hidden');
-                projectSection.classList.add('hidden');
-                dictationSection.classList.add('hidden');
-                apiKeyInput.value = '';
-                apiKeyContainer.classList.remove('has-value');
-                projectDropdown.value = '';
-                apiKeyStatus.textContent = '';
-                projectStatus.textContent = '';
+    // Function to fetch projects from API
+    async function fetchProjects(apiKey) {
+        try {
+            const response = await fetch(`${EXTENSION_CONFIG.apiBaseURL}/api/trpc/project.getUserProjects`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey
+                }
             });
+            
+            if (!response.ok) {
+                throw new Error(`API returned ${response.status}`);
+            }
+            
+            const data = await response.json();
+            return data.result.data.json.projects;
+        } catch (error) {
+            console.error('Error fetching projects:', error);
+            return [];
         }
-    };
+    }
+    
+    // Function to populate project dropdown
+    function populateProjectDropdown(projects) {
+        // Clear existing options except the first one
+        projectDropdown.innerHTML = '<option value="">Select a project...</option>';
+        
+        // Add projects from API
+        projects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = project.name;
+            projectDropdown.appendChild(option);
+        });
+    }
 });
 
 // Open Chrome microphone settings
