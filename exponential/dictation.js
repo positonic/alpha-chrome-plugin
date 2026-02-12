@@ -147,38 +147,39 @@ function initializeSpeechRecognition() {
             console.log('recognition.onresult: Screenshot check:', screenshotMatch);
             if (screenshotMatch) {
                 console.log('recognition.onresult: Screenshot command detected, querying tabs...');
-                chrome.tabs.query({active: true, lastFocusedWindow: true}, function(tabs) {
+                // Query for active tab in a normal browser window (not this dictation popup)
+                chrome.tabs.query({active: true, windowType: 'normal'}, function(tabs) {
                     console.log('recognition.onresult: tabs.query result:', tabs?.length, 'tabs');
-                    if (tabs[0]) {
-                        chrome.windows.get(tabs[0].windowId, function(parentWindow) {
-                            chrome.tabs.captureVisibleTab(parentWindow.id, {format: 'png'}, async function(dataUrl) {
-                                // Play shutter sound
-                                shutterSound.play().catch(err => console.log('Could not play shutter sound:', err));
-                                
-                                // Save locally
-                                const link = document.createElement('a');
-                                link.href = dataUrl;
-                                link.download = `screenshot_${getNow().replace(/[/:]/g, '-')}.png`;
-                                link.click();
-                                
-                                // Save to server
-                                const saved = await saveScreenshot(dataUrl);
-                                
-                                // Replace screenshot commands with marker in the transcript
-                                transcript = transcriptLower
-                                    .replace(/take\s+a?\s*screenshot/g, '[SCREENSHOT]');
-                                currentTranscription = transcript;
-                                output.textContent = currentTranscription;
-                                
-                                // Stop recognition - onend will handle saving and restarting
-                                recognition.stop();
-                                
-                                // Update status
-                                status.textContent = saved ? 'Screenshot saved locally and to server!' : 'Screenshot saved locally (server save failed)';
-                                setTimeout(() => {
-                                    status.textContent = 'Listening...';
-                                }, 2000);
-                            });
+                    // Pick the most recently focused normal window's tab
+                    const tab = tabs[0];
+                    if (tab) {
+                        chrome.tabs.captureVisibleTab(tab.windowId, {format: 'png'}, async function(dataUrl) {
+                            // Play shutter sound
+                            shutterSound.play().catch(err => console.log('Could not play shutter sound:', err));
+
+                            // Save locally
+                            const link = document.createElement('a');
+                            link.href = dataUrl;
+                            link.download = `screenshot_${getNow().replace(/[/:]/g, '-')}.png`;
+                            link.click();
+
+                            // Save to server
+                            const saved = await saveScreenshot(dataUrl);
+
+                            // Replace screenshot commands with marker in the transcript
+                            transcript = transcriptLower
+                                .replace(/take\s+a?\s*screenshot/g, '[SCREENSHOT]');
+                            currentTranscription = transcript;
+                            output.textContent = currentTranscription;
+
+                            // Stop recognition - onend will handle saving and restarting
+                            recognition.stop();
+
+                            // Update status
+                            status.textContent = saved ? 'Screenshot saved locally and to server!' : 'Screenshot saved locally (server save failed)';
+                            setTimeout(() => {
+                                status.textContent = 'Listening...';
+                            }, 2000);
                         });
                     }
                 });
