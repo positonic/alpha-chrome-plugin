@@ -9,11 +9,14 @@ const shutterSound = new Audio('shutter.mp3');
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
 
 let isListening = false;
+let isStarting = false; // Guard against multiple concurrent startListening calls
 let recognition;
 let currentSessionId = null;  // Store the current session ID
 let currentTranscription = ''; // Keep track of accumulated transcription
 let lastScreenshotTime = 0;
 const SCREENSHOT_COOLDOWN = 2000; // 2 seconds cooldown
+let consecutiveNetworkErrors = 0;
+const MAX_NETWORK_ERRORS = 3; // Stop retrying after this many consecutive network errors
 
 // Add this near the top with other utility functions
 async function getApiKey() {
@@ -73,6 +76,8 @@ function initializeSpeechRecognition() {
 
     recognition.onstart = () => {
         console.log('Recognition started');
+        isStarting = false; // Clear guard now that recognition is running
+        consecutiveNetworkErrors = 0; // Reset error counter on successful start
         status.textContent = 'Recording...';
         status.className = 'listening';
         toggleButton.textContent = 'Stop Recording';
@@ -87,33 +92,17 @@ function initializeSpeechRecognition() {
         status.className = '';
 
         if (event.error === 'network') {
-            console.log('onerror: Network error');
-            // For network errors, try to restart after a short delay
-            // status.textContent = 'Network error - attempting to reconnect...';
-            // if (isListening) {
-            //     setTimeout(() => {
-            //         console.log('onerror: isListening:', isListening);
-                        
-            //         if (isListening && recognition.state === 'inactive') {  // Only restart if inactive
-            //             console.log('onerror: Recognition state:', recognition.state);
-            //             console.log('onerror: Restarting recognition');
-            //             recognition.start();
-            //         } else {
-            //             console.log('onerror: Cannot restart recognition - current state:', recognition.state);
-            //             // If we can't restart, we should probably stop listening
-            //             //stopListening();
-            //             console.log('onerror: not doing anything.... CAN THIS HAPPEN?');
-            //         }
-            //     }, 500);  // Wait before retrying
-            // }
+            consecutiveNetworkErrors++;
+            console.log('onerror: Network error #' + consecutiveNetworkErrors);
+
+            if (consecutiveNetworkErrors >= MAX_NETWORK_ERRORS) {
+                console.log('onerror: Too many network errors, stopping');
+                status.textContent = 'Network error - please check your internet connection and try again';
+                isListening = false; // Prevent onend from restarting
+            }
         } else {
-            console.log('onerror: Other error!!!');
-                        
-            // // For other errors, save and stop as before
-            // if (currentSessionId && currentTranscription) {
-            //     await saveTranscription(currentSessionId, currentTranscription);
-            // }
-            // stopListening();
+            console.log('onerror: Other error:', event.error);
+            consecutiveNetworkErrors = 0; // Reset on non-network errors
         }
     };
 
@@ -131,6 +120,14 @@ function initializeSpeechRecognition() {
             console.log('onend: Restarting recognition');
             // Only restart if this was a timeout
             recognition.start();
+        } else {
+            // Reset UI when not restarting (e.g., after network errors)
+            toggleButton.textContent = 'Start Recording';
+            toggleButton.style.background = 'linear-gradient(135deg, #64A1F8 0%, #4F89E8 100%)';
+            toggleButton.style.boxShadow = '0 4px 12px rgba(100, 161, 248, 0.3)';
+            if (currentSessionId) {
+                sessionUrl.style.display = 'inline';
+            }
         }
     };
 
@@ -222,7 +219,13 @@ function insertText(text) {
 
 // Start listening
 async function startListening() {
+    if (isStarting) {
+        console.log('startListening: Already starting, ignoring duplicate call');
+        return;
+    }
+    isStarting = true;
     console.log('startListening: Starting listening');
+    consecutiveNetworkErrors = 0; // Reset error counter on new start attempt
     try {
         // Get API key and project ID first
         const apiKey = await getApiKey();
@@ -278,11 +281,12 @@ async function startListening() {
         // Clear previous transcription
         currentTranscription = '';
         recognition.start();
-        
+
     } catch (error) {
         console.error('Error starting recognition:', error);
         status.textContent = 'Error: Could not start session or access microphone';
         status.className = '';
+        isStarting = false;
     }
 }
 
@@ -365,6 +369,7 @@ async function saveScreenshot(dataUrl) {
 // Stop listening
 async function stopListening() {
     isListening = false;  // Set this first to prevent onend from restarting
+    isStarting = false;   // Reset guard flag
     if (recognition) {
         recognition.stop();  // This will trigger onend which will save
     }
