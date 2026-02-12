@@ -1,5 +1,5 @@
 {
-    "name": "Alpha Whisper",
+    "name": "Exponential Whisper",
     "version": "1.2",
     "description": "A voice dictation extension with local Whisper speech recognition",
     "manifest_version": 3,

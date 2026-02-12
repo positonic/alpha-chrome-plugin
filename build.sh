@@ -43,14 +43,14 @@ echo "Building Exponential TEST..."
 rsync -av --delete --exclude='.DS_Store' exponential/ dist/exponential-test/
 cat > dist/exponential-test/config.js << 'EOF'
 const EXTENSION_CONFIG = {
-    name: "Alpha Whisper",
+    name: "Exponential Whisper",
     apiBaseURL: "http://localhost:3000",
     hasProjects: true,
     projects: [] // Will be loaded dynamically from API
 };
 EOF
-sed -i '' 's/"action": {/"action": {\n      "default_title": "Alpha Whisper (TEST - localhost)",/' dist/exponential-test/manifest.json
-sed -i '' 's/"name": "Alpha Whisper"/"name": "Alpha Whisper (TEST)"/' dist/exponential-test/manifest.json
+sed -i '' 's/"action": {/"action": {\n      "default_title": "Exponential Whisper (TEST - localhost)",/' dist/exponential-test/manifest.json
+sed -i '' 's/"name": "Exponential Whisper"/"name": "Exponential Whisper (TEST)"/' dist/exponential-test/manifest.json
 
 # Build Tradescape TEST
 echo "Building Tradescape TEST..."
@@ -75,14 +75,14 @@ if [ "$BUILD_PROD" = true ]; then
     rsync -av --delete --exclude='.DS_Store' exponential/ dist/exponential-prod/
     cat > dist/exponential-prod/config.js << 'EOF'
 const EXTENSION_CONFIG = {
-    name: "Alpha Whisper",
+    name: "Exponential Whisper",
     apiBaseURL: "https://www.exponential.im",
     hasProjects: true,
     projects: [] // Will be loaded dynamically from API
 };
 EOF
-    sed -i '' 's/"action": {/"action": {\n      "default_title": "Alpha Whisper (PROD - exponential.im)",/' dist/exponential-prod/manifest.json
-    sed -i '' 's/"name": "Alpha Whisper"/"name": "Alpha Whisper (PROD)"/' dist/exponential-prod/manifest.json
+    sed -i '' 's/"action": {/"action": {\n      "default_title": "Exponential Whisper (PROD - exponential.im)",/' dist/exponential-prod/manifest.json
+    sed -i '' 's/"name": "Exponential Whisper"/"name": "Exponential Whisper (PROD)"/' dist/exponential-prod/manifest.json
 
     # Build Tradescape PROD
     echo "Building Tradescape PROD..."
