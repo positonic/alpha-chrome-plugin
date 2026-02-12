@@ -1,8 +1,8 @@
 // Service worker for Chrome extension
 // Manages side panel lifecycle and mic permission state
 
-// Configure side panel — don't auto-open on action click (popup handles that)
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+// Configure side panel — open directly when the extension icon is clicked
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 
 // Keyboard shortcut handler — forward toggle-annotation command to side panel / extension pages
 chrome.commands.onCommand.addListener((command) => {

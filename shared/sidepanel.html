@@ -225,9 +225,166 @@
       .btn-clear:hover {
         background: #4b5563 !important;
       }
+
+      /* Setup section */
+      .setup-card {
+        background: white;
+        padding: 16px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        border: 2px solid #e5e7eb;
+        margin-bottom: 12px;
+      }
+      .setup-card h2 {
+        margin: 0 0 12px 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #374151;
+      }
+      .setup-input {
+        width: 100%;
+        padding: 10px 14px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 14px;
+        background: white;
+        transition: border-color 0.2s ease;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+      }
+      .setup-input:focus {
+        outline: none;
+        border-color: #64A1F8;
+        box-shadow: 0 0 0 3px rgba(100, 161, 248, 0.1);
+      }
+      .setup-select {
+        width: 100%;
+        padding: 10px 14px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 14px;
+        background: white;
+        transition: border-color 0.2s ease;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+      }
+      .setup-select:focus {
+        outline: none;
+        border-color: #64A1F8;
+        box-shadow: 0 0 0 3px rgba(100, 161, 248, 0.1);
+      }
+      .setup-status {
+        font-size: 13px;
+        font-weight: 500;
+        color: #059669;
+        min-height: 18px;
+      }
+      .setup-status.error {
+        color: #dc3545;
+      }
+      .hidden {
+        display: none !important;
+      }
+
+      /* Settings header bar */
+      .settings-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .settings-bar .app-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #374151;
+      }
+      .test-mode-badge {
+        font-size: 10px;
+        color: #f59e0b;
+        font-weight: 600;
+        margin-left: 8px;
+      }
+      .btn-settings {
+        background: white;
+        color: #6b7280;
+        border: 2px solid #e5e7eb;
+        border-radius: 6px;
+        cursor: pointer;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        width: auto;
+        margin: 0;
+        transition: all 0.2s ease;
+        box-shadow: none;
+      }
+      .btn-settings:hover {
+        background: #f3f4f6;
+        border-color: #d1d5db;
+        color: #374151;
+        transform: none;
+      }
+
+      /* Settings dropdown */
+      .settings-dropdown {
+        background: white;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      .settings-dropdown .btn-danger {
+        background: white;
+        color: #dc3545;
+        border: 2px solid #fecaca;
+        font-size: 12px;
+        padding: 8px 14px;
+      }
+      .settings-dropdown .btn-danger:hover {
+        background: #fef2f2;
+        border-color: #dc3545;
+        transform: none;
+      }
     </style>
   </head>
   <body>
+    <!-- Settings bar (visible after setup) -->
+    <div class="settings-bar hidden" id="settingsBar">
+      <span class="app-name">
+        <span id="appName"></span>
+        <span class="test-mode-badge hidden" id="testModeBadge"></span>
+      </span>
+      <button class="btn-settings" id="settingsBtn">Settings</button>
+    </div>
+
+    <!-- Settings dropdown (toggled by settings button) -->
+    <div class="settings-dropdown hidden" id="settingsDropdown">
+      <div style="margin-bottom: 8px; font-size: 12px; color: #6b7280;" id="currentKeyDisplay"></div>
+      <div style="margin-bottom: 8px; font-size: 12px; color: #6b7280;" id="currentProjectDisplay"></div>
+      <button class="btn-danger" id="clearApiKeyBtn">Clear API Key</button>
+    </div>
+
+    <!-- Setup section (visible until configured) -->
+    <div id="setupSection">
+      <div class="setup-card" id="apiKeyCard">
+        <h2>API Key Required</h2>
+        <input type="text" id="apiKeyInput" class="setup-input" placeholder="Enter your API key">
+        <button class="btn-primary" id="saveApiKeyBtn">Save API Key</button>
+        <div class="setup-status" id="apiKeyStatus"></div>
+      </div>
+      <div class="setup-card hidden" id="projectCard">
+        <h2>Select Project</h2>
+        <select id="projectDropdown" class="setup-select">
+          <option value="">Select a project...</option>
+        </select>
+        <div class="setup-status" id="projectStatus"></div>
+      </div>
+    </div>
+
+    <!-- Dictation UI (hidden until setup complete) -->
+    <div id="dictationUI" class="hidden">
+
     <!-- Engine toggle -->
     <div class="engine-toggle">
       <button id="engineWhisper" class="active">Local (Whisper)</button>
@@ -261,6 +418,8 @@
       <a id="session-url" href="#" target="_blank">transcription</a>
     </div>
     <div id="output">Click "Start Recording" and speak into your microphone...</div>
+
+    </div><!-- end #dictationUI -->
 
     <script src="config.js"></script>
     <script src="speech-engine-google.js"></script>

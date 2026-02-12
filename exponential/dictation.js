@@ -23,7 +23,7 @@ async function getApiKey() {
     return new Promise((resolve) => {
         chrome.storage.local.get(['TRANSCRIPTION_API_KEY'], function(result) {
             if (!result.TRANSCRIPTION_API_KEY) {
-                status.textContent = 'Please set your API key in the extension popup';
+                status.textContent = 'API key not set. Please configure in settings.';
                 throw new Error('API key not set');
             }
             resolve(result.TRANSCRIPTION_API_KEY);
@@ -37,7 +37,7 @@ async function getProjectId() {
             console.log('getProjectId: Retrieved from storage:', result);
             if (!result.SELECTED_PROJECT_ID) {
                 console.log('getProjectId: No project ID found in storage');
-                status.textContent = 'Please select a project in the extension popup';
+                status.textContent = 'No project selected. Please configure in settings.';
                 throw new Error('Project not selected');
             }
             console.log('getProjectId: Returning project ID:', result.SELECTED_PROJECT_ID);
@@ -305,7 +305,7 @@ async function saveTranscription(id, transcriptionText) {
     } catch (error) {
         console.error('Error saving transcription:', error);
         if (error.message === 'API key not set') {
-            status.textContent = 'Please set your API key in the extension popup';
+            status.textContent = 'API key not set. Please configure in settings.';
         }
         return false;
     }

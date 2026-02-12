@@ -12,6 +12,25 @@ const modelStatusText = document.getElementById('modelStatusText');
 const modelProgressBar = document.getElementById('modelProgressBar');
 const shutterSound = new Audio('shutter.mp3');
 
+// Setup UI elements
+const setupSection = document.getElementById('setupSection');
+const apiKeyCard = document.getElementById('apiKeyCard');
+const apiKeyInput = document.getElementById('apiKeyInput');
+const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+const apiKeyStatusEl = document.getElementById('apiKeyStatus');
+const projectCard = document.getElementById('projectCard');
+const projectDropdown = document.getElementById('projectDropdown');
+const projectStatusEl = document.getElementById('projectStatus');
+const dictationUI = document.getElementById('dictationUI');
+const settingsBar = document.getElementById('settingsBar');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsDropdown = document.getElementById('settingsDropdown');
+const clearApiKeyBtn = document.getElementById('clearApiKeyBtn');
+const appNameEl = document.getElementById('appName');
+const testModeBadge = document.getElementById('testModeBadge');
+const currentKeyDisplay = document.getElementById('currentKeyDisplay');
+const currentProjectDisplay = document.getElementById('currentProjectDisplay');
+
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
 const hasProjects = EXTENSION_CONFIG.hasProjects;
 
@@ -32,7 +51,7 @@ async function getApiKey() {
     return new Promise((resolve, reject) => {
         chrome.storage.local.get(['TRANSCRIPTION_API_KEY'], function(result) {
             if (!result.TRANSCRIPTION_API_KEY) {
-                statusEl.textContent = 'Please set your API key in the extension popup';
+                statusEl.textContent = 'API key not set. Please configure in settings.';
                 reject(new Error('API key not set'));
                 return;
             }
@@ -46,7 +65,7 @@ async function getProjectId() {
     return new Promise((resolve, reject) => {
         chrome.storage.local.get(['SELECTED_PROJECT_ID'], function(result) {
             if (!result.SELECTED_PROJECT_ID) {
-                statusEl.textContent = 'Please select a project in the extension popup';
+                statusEl.textContent = 'No project selected. Please configure in settings.';
                 reject(new Error('Project not selected'));
                 return;
             }
@@ -63,6 +82,156 @@ function getNow() {
     const minutes = '00';
     const seconds = String(now.getSeconds()).padStart(2, '0');
     return `${month}/${day} ${hours}:${minutes}:${seconds}`;
+}
+
+// --- Setup / configuration ---
+
+async function fetchProjects(apiKey) {
+    try {
+        const response = await fetch(`${apiBaseURL}/api/trpc/project.getUserProjects`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey }
+        });
+        if (!response.ok) throw new Error(`API returned ${response.status}`);
+        const data = await response.json();
+        return data.result.data.json.projects;
+    } catch (error) {
+        console.error('Error fetching projects:', error);
+        return [];
+    }
+}
+
+function populateProjectDropdown(projects) {
+    projectDropdown.innerHTML = '<option value="">Select a project...</option>';
+    projects.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.id;
+        option.textContent = project.name;
+        projectDropdown.appendChild(option);
+    });
+}
+
+function showSetup() {
+    setupSection.classList.remove('hidden');
+    dictationUI.classList.add('hidden');
+    settingsBar.classList.add('hidden');
+    settingsDropdown.classList.add('hidden');
+}
+
+function showDictation() {
+    setupSection.classList.add('hidden');
+    dictationUI.classList.remove('hidden');
+    settingsBar.classList.remove('hidden');
+    settingsDropdown.classList.add('hidden');
+}
+
+async function checkSetupState() {
+    return new Promise((resolve) => {
+        const keys = ['TRANSCRIPTION_API_KEY'];
+        if (hasProjects) keys.push('SELECTED_PROJECT_ID');
+
+        chrome.storage.local.get(keys, async (result) => {
+            if (!result.TRANSCRIPTION_API_KEY) {
+                apiKeyCard.classList.remove('hidden');
+                projectCard.classList.add('hidden');
+                showSetup();
+                resolve(false);
+                return;
+            }
+
+            if (hasProjects && !result.SELECTED_PROJECT_ID) {
+                apiKeyCard.classList.add('hidden');
+                projectCard.classList.remove('hidden');
+                const projects = await fetchProjects(result.TRANSCRIPTION_API_KEY);
+                populateProjectDropdown(projects);
+                showSetup();
+                resolve(false);
+                return;
+            }
+
+            // Fully configured
+            const key = result.TRANSCRIPTION_API_KEY;
+            currentKeyDisplay.textContent = 'API Key: ' + key.slice(0, 4) + '...' + key.slice(-4);
+            if (hasProjects && result.SELECTED_PROJECT_ID) {
+                currentProjectDisplay.textContent = 'Project: ' + result.SELECTED_PROJECT_ID;
+                currentProjectDisplay.style.display = 'block';
+            } else {
+                currentProjectDisplay.style.display = 'none';
+            }
+
+            showDictation();
+            resolve(true);
+        });
+    });
+}
+
+// Setup event handlers
+saveApiKeyBtn.onclick = async () => {
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+        apiKeyStatusEl.textContent = 'Please enter an API key';
+        apiKeyStatusEl.classList.add('error');
+        return;
+    }
+
+    if (hasProjects) {
+        apiKeyStatusEl.textContent = 'Validating key...';
+        apiKeyStatusEl.classList.remove('error');
+        const projects = await fetchProjects(apiKey);
+        if (projects.length === 0) {
+            apiKeyStatusEl.textContent = 'Invalid API key or no projects found';
+            apiKeyStatusEl.classList.add('error');
+            return;
+        }
+        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey }, () => {
+            apiKeyStatusEl.textContent = '';
+            populateProjectDropdown(projects);
+            apiKeyCard.classList.add('hidden');
+            projectCard.classList.remove('hidden');
+        });
+    } else {
+        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey }, async () => {
+            apiKeyStatusEl.textContent = '';
+            const ready = await checkSetupState();
+            if (ready) await initEngines();
+        });
+    }
+};
+
+projectDropdown.onchange = () => {
+    const selectedId = projectDropdown.value;
+    if (selectedId) {
+        chrome.storage.local.set({ 'SELECTED_PROJECT_ID': selectedId }, async () => {
+            projectStatusEl.textContent = '';
+            const ready = await checkSetupState();
+            if (ready) await initEngines();
+        });
+    }
+};
+
+settingsBtn.onclick = () => {
+    settingsDropdown.classList.toggle('hidden');
+};
+
+clearApiKeyBtn.onclick = () => {
+    if (confirm('Are you sure you want to clear the API key?')) {
+        if (isListening) stopListening();
+        const keysToRemove = ['TRANSCRIPTION_API_KEY'];
+        if (hasProjects) keysToRemove.push('SELECTED_PROJECT_ID');
+        chrome.storage.local.remove(keysToRemove, () => {
+            apiKeyInput.value = '';
+            projectDropdown.innerHTML = '<option value="">Select a project...</option>';
+            apiKeyStatusEl.textContent = '';
+            projectStatusEl.textContent = '';
+            checkSetupState();
+        });
+    }
+};
+
+async function initEngines() {
+    const result = await chrome.storage.local.get('SPEECH_ENGINE');
+    const savedEngine = result.SPEECH_ENGINE || 'whisper';
+    await switchEngine(savedEngine);
 }
 
 // --- Server communication (unchanged from dictation.js) ---
@@ -491,8 +660,17 @@ engineGoogleBtn.onclick = () => switchEngine('google');
 // --- Initialize ---
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Load saved engine preference (default to whisper)
-    const result = await chrome.storage.local.get('SPEECH_ENGINE');
-    const savedEngine = result.SPEECH_ENGINE || 'whisper';
-    await switchEngine(savedEngine);
+    // Set app name and test mode badge
+    appNameEl.textContent = EXTENSION_CONFIG.name;
+    if (apiBaseURL.includes('localhost')) {
+        const url = new URL(apiBaseURL);
+        testModeBadge.textContent = 'TEST - Port ' + url.port;
+        testModeBadge.classList.remove('hidden');
+    }
+
+    // Check setup state — only initialize engines if fully configured
+    const isConfigured = await checkSetupState();
+    if (isConfigured) {
+        await initEngines();
+    }
 });

@@ -40,7 +40,7 @@ cp -r shared/* tradescape/
 
 # Build Exponential TEST
 echo "Building Exponential TEST..."
-rsync -av --exclude='.DS_Store' exponential/ dist/exponential-test/
+rsync -av --delete --exclude='.DS_Store' exponential/ dist/exponential-test/
 cat > dist/exponential-test/config.js << 'EOF'
 const EXTENSION_CONFIG = {
     name: "Alpha Whisper",
@@ -49,12 +49,12 @@ const EXTENSION_CONFIG = {
     projects: [] // Will be loaded dynamically from API
 };
 EOF
-sed -i '' 's/"default_popup": "popup.html"/"default_popup": "popup.html",\n      "default_title": "Alpha Whisper (TEST - localhost)"/' dist/exponential-test/manifest.json
+sed -i '' 's/"action": {/"action": {\n      "default_title": "Alpha Whisper (TEST - localhost)",/' dist/exponential-test/manifest.json
 sed -i '' 's/"name": "Alpha Whisper"/"name": "Alpha Whisper (TEST)"/' dist/exponential-test/manifest.json
 
 # Build Tradescape TEST
 echo "Building Tradescape TEST..."
-rsync -av --exclude='.DS_Store' tradescape/ dist/tradescape-test/
+rsync -av --delete --exclude='.DS_Store' tradescape/ dist/tradescape-test/
 cat > dist/tradescape-test/config.js << 'EOF'
 const EXTENSION_CONFIG = {
     name: "Tradescape",
@@ -63,7 +63,7 @@ const EXTENSION_CONFIG = {
     projects: [] // No projects for Tradescape
 };
 EOF
-sed -i '' 's/"default_popup": "popup.html"/"default_popup": "popup.html",\n      "default_title": "Tradescape (TEST - localhost)"/' dist/tradescape-test/manifest.json
+sed -i '' 's/"action": {/"action": {\n      "default_title": "Tradescape (TEST - localhost)",/' dist/tradescape-test/manifest.json
 sed -i '' 's/"name": "Tradescape"/"name": "Tradescape (TEST)"/' dist/tradescape-test/manifest.json
 
 if [ "$BUILD_PROD" = true ]; then
@@ -72,7 +72,7 @@ if [ "$BUILD_PROD" = true ]; then
 
     # Build Exponential PROD
     echo "Building Exponential PROD..."
-    rsync -av --exclude='.DS_Store' exponential/ dist/exponential-prod/
+    rsync -av --delete --exclude='.DS_Store' exponential/ dist/exponential-prod/
     cat > dist/exponential-prod/config.js << 'EOF'
 const EXTENSION_CONFIG = {
     name: "Alpha Whisper",
@@ -81,12 +81,12 @@ const EXTENSION_CONFIG = {
     projects: [] // Will be loaded dynamically from API
 };
 EOF
-    sed -i '' 's/"default_popup": "popup.html"/"default_popup": "popup.html",\n      "default_title": "Alpha Whisper (PROD - exponential.im)"/' dist/exponential-prod/manifest.json
+    sed -i '' 's/"action": {/"action": {\n      "default_title": "Alpha Whisper (PROD - exponential.im)",/' dist/exponential-prod/manifest.json
     sed -i '' 's/"name": "Alpha Whisper"/"name": "Alpha Whisper (PROD)"/' dist/exponential-prod/manifest.json
 
     # Build Tradescape PROD
     echo "Building Tradescape PROD..."
-    rsync -av --exclude='.DS_Store' tradescape/ dist/tradescape-prod/
+    rsync -av --delete --exclude='.DS_Store' tradescape/ dist/tradescape-prod/
     cat > dist/tradescape-prod/config.js << 'EOF'
 const EXTENSION_CONFIG = {
     name: "Tradescape",
@@ -95,7 +95,7 @@ const EXTENSION_CONFIG = {
     projects: [] // No projects for Tradescape
 };
 EOF
-    sed -i '' 's/"default_popup": "popup.html"/"default_popup": "popup.html",\n      "default_title": "Tradescape (PROD - tradetronic)"/' dist/tradescape-prod/manifest.json
+    sed -i '' 's/"action": {/"action": {\n      "default_title": "Tradescape (PROD - tradetronic)",/' dist/tradescape-prod/manifest.json
     sed -i '' 's/"name": "Tradescape"/"name": "Tradescape (PROD)"/' dist/tradescape-prod/manifest.json
 fi
 
