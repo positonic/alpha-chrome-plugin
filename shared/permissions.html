@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Microphone Permission</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      }
+      .container {
+        text-align: center;
+        padding: 40px;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+        max-width: 400px;
+      }
+      h2 { color: #1e293b; margin-bottom: 12px; }
+      p { color: #64748b; line-height: 1.6; margin-bottom: 24px; }
+      button {
+        padding: 14px 28px;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      button:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4); }
+      .status { margin-top: 16px; font-size: 14px; }
+      .success { color: #16a34a; }
+      .error { color: #dc2626; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Microphone Access</h2>
+      <p>This extension needs microphone access for voice dictation. Click the button below to grant permission.</p>
+      <button id="grantBtn">Grant Microphone Access</button>
+      <div class="status" id="status"></div>
+    </div>
+    <script src="permissions.js"></script>
+  </body>
+</html>

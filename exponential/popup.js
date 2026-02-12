@@ -127,16 +127,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Handle start dictation button
-    startDictationButton.onclick = () => {
-        chrome.windows.create({
-            url: 'dictation.html',
-            type: 'popup',
-            width: 400,
-            height: 400
-        }, () => {
-            window.close();
-        });
+    // Handle start dictation button — open side panel
+    startDictationButton.onclick = async () => {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (tab) {
+                await chrome.sidePanel.open({ windowId: tab.windowId });
+            }
+        } catch (error) {
+            console.error('Error opening side panel:', error);
+            // Fallback to separate window if side panel fails
+            chrome.windows.create({
+                url: 'dictation.html',
+                type: 'popup',
+                width: 400,
+                height: 400
+            });
+        }
+        window.close();
     };
 
     // Handle clear API key button (X button in input field)
