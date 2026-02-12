@@ -359,7 +359,14 @@ async function saveScreenshot(dataUrl) {
         });
         const data = await response.json();
         console.log('saveScreenshot: Response:', data);
-        return data.result.success;
+
+        if (!response.ok) {
+            console.error('saveScreenshot: Server returned error', response.status, data);
+            status.textContent = 'Error saving screenshot (' + response.status + ')';
+            return false;
+        }
+
+        return data.result && data.result.success;
     } catch (error) {
         console.error('Error saving screenshot:', error);
         return false;

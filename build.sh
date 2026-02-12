@@ -34,7 +34,7 @@ rsync -av --exclude='.DS_Store' exponential/ dist/exponential-prod/
 cat > dist/exponential-prod/config.js << 'EOF'
 const EXTENSION_CONFIG = {
     name: "Alpha Whisper",
-    apiBaseURL: "https://exponential.im",
+    apiBaseURL: "https://www.exponential.im",
     hasProjects: true,
     projects: [] // Will be loaded dynamically from API
 };
