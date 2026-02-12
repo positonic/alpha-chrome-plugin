@@ -30,6 +30,9 @@ const appNameEl = document.getElementById('appName');
 const testModeBadge = document.getElementById('testModeBadge');
 const currentKeyDisplay = document.getElementById('currentKeyDisplay');
 const currentProjectDisplay = document.getElementById('currentProjectDisplay');
+const changeProjectBtn = document.getElementById('changeProjectBtn');
+const changeProjectSection = document.getElementById('changeProjectSection');
+const changeProjectDropdown = document.getElementById('changeProjectDropdown');
 
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
 const hasProjects = EXTENSION_CONFIG.hasProjects;
@@ -156,8 +159,10 @@ async function checkSetupState() {
             if (hasProjects && result.SELECTED_PROJECT_ID) {
                 currentProjectDisplay.textContent = 'Project: ' + result.SELECTED_PROJECT_ID;
                 currentProjectDisplay.style.display = 'block';
+                changeProjectBtn.style.display = '';
             } else {
                 currentProjectDisplay.style.display = 'none';
+                changeProjectBtn.style.display = 'none';
             }
 
             showDictation();
@@ -229,6 +234,35 @@ clearApiKeyBtn.onclick = () => {
     }
 };
 
+changeProjectBtn.onclick = async () => {
+    const isOpen = !changeProjectSection.classList.contains('hidden');
+    if (isOpen) {
+        changeProjectSection.classList.add('hidden');
+        return;
+    }
+    const apiKey = await getApiKey();
+    const projects = await fetchProjects(apiKey);
+    changeProjectDropdown.innerHTML = '<option value="">Select a project...</option>';
+    projects.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.id;
+        option.textContent = project.name;
+        changeProjectDropdown.appendChild(option);
+    });
+    changeProjectSection.classList.remove('hidden');
+};
+
+changeProjectDropdown.onchange = async () => {
+    const selectedId = changeProjectDropdown.value;
+    if (!selectedId) return;
+    if (isListening) stopListening();
+    chrome.storage.local.set({ 'SELECTED_PROJECT_ID': selectedId }, async () => {
+        changeProjectSection.classList.add('hidden');
+        settingsDropdown.classList.add('hidden');
+        await checkSetupState();
+    });
+};
+
 async function initEngines() {
     const result = await chrome.storage.local.get('SPEECH_ENGINE');
     const savedEngine = result.SPEECH_ENGINE || 'whisper';
@@ -258,7 +292,7 @@ async function startServerSession() {
     }
 
     currentSessionId = data.result.data.json.id;
-    const sessionLinkUrl = `${apiBaseURL}/session/${currentSessionId}`;
+    const sessionLinkUrl = `${apiBaseURL}/redirect-recording-to-workspace/${currentSessionId}`;
     sessionUrl.href = sessionLinkUrl;
 }
 

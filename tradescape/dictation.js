@@ -237,7 +237,7 @@ async function startListening() {
         console.log('startListening: Current session ID:', currentSessionId);
         
         // Store session URL but don't show yet
-        const sessionLinkUrl = `${apiBaseURL}/session/${currentSessionId}`;
+        const sessionLinkUrl = `${apiBaseURL}/redirect-recording-to-workspace/${currentSessionId}`;
         sessionUrl.href = sessionLinkUrl;
 
         // Request microphone access
