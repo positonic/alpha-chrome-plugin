@@ -1,6 +1,6 @@
 const EXTENSION_CONFIG = {
     name: "Tradescape",
-    apiBaseURL: "http://localhost:3001",
+    apiBaseURL: "https://tradetronic.vercel.app",
     hasProjects: false,
     projects: [] // No projects for Tradescape
 };
