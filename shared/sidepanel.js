@@ -172,6 +172,38 @@ function handleScreenshotCommand(transcript) {
     return true;
 }
 
+// --- Take screenshot (button-triggered, no voice command processing) ---
+
+async function takeScreenshot() {
+    const tab = await getActiveNormalTab();
+    if (!tab) {
+        statusEl.textContent = 'No active tab found for screenshot';
+        return;
+    }
+    chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }, async function(dataUrl) {
+        if (chrome.runtime.lastError || !dataUrl) {
+            statusEl.textContent = 'Screenshot failed';
+            return;
+        }
+        shutterSound.play().catch(() => {});
+        // Save locally
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `screenshot_${getNow().replace(/[/:]/g, '-')}.png`;
+        link.click();
+        // Save to server
+        const saved = await saveScreenshot(dataUrl);
+        // Auto-clear annotations after screenshot
+        chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' }).catch(() => {});
+        // Update status
+        statusEl.textContent = saved ? 'Screenshot saved!' : 'Screenshot saved locally (server save failed)';
+        setTimeout(() => {
+            if (isListening) statusEl.textContent = 'Recording...';
+            else statusEl.textContent = 'Ready';
+        }, 2000);
+    });
+}
+
 // --- Annotation overlay control ---
 
 let annotationActive = false;
@@ -258,6 +290,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 });
 
+const screenshotBtn = document.getElementById('screenshotBtn');
+if (screenshotBtn) screenshotBtn.addEventListener('click', takeScreenshot);
 if (drawBtn) drawBtn.addEventListener('click', toggleAnnotation);
 if (toolArrowBtn) toolArrowBtn.addEventListener('click', () => setAnnotationTool('arrow'));
 if (toolFreehandBtn) toolFreehandBtn.addEventListener('click', () => setAnnotationTool('freehand'));

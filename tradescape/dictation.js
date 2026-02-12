@@ -131,44 +131,16 @@ function initializeSpeechRecognition() {
             // Check for screenshot commands
             const transcriptLower = transcript.toLowerCase();
             if (transcriptLower.includes('take screenshot') || transcriptLower.includes('take a screenshot')) {
-                chrome.tabs.query({active: true, lastFocusedWindow: true}, function(tabs) {
-                    if (tabs[0]) {
-                        chrome.windows.get(tabs[0].windowId, function(parentWindow) {
-                            chrome.tabs.captureVisibleTab(parentWindow.id, {format: 'png'}, async function(dataUrl) {
-                                // Play shutter sound
-                                shutterSound.play().catch(err => console.log('Could not play shutter sound:', err));
-                                
-                                // Save locally
-                                const link = document.createElement('a');
-                                link.href = dataUrl;
-                                link.download = `screenshot_${getNow().replace(/[/:]/g, '-')}.png`;
-                                link.click();
-                                
-                                // Save to server
-                                const saved = await saveScreenshot(dataUrl);
-                                
-                                // Auto-clear annotations after screenshot
-                                chrome.tabs.sendMessage(tabs[0].id, { type: 'annotation-clear' }).catch(() => {});
+                // Replace screenshot commands with marker in the transcript
+                transcript = transcriptLower
+                    .replace('take screenshot', '[SCREENSHOT]')
+                    .replace('take a screenshot', '[SCREENSHOT]');
+                currentTranscription = transcript;
+                output.textContent = currentTranscription;
 
-                                // Replace both possible commands with marker in the transcript
-                                transcript = transcriptLower
-                                    .replace('take screenshot', '[SCREENSHOT]')
-                                    .replace('take a screenshot', '[SCREENSHOT]');
-                                currentTranscription = transcript;
-                                output.textContent = currentTranscription;
-                                
-                                // Stop recognition - onend will handle saving and restarting
-                                recognition.stop();
-                                
-                                // Update status
-                                status.textContent = saved ? 'Screenshot saved locally and to server!' : 'Screenshot saved locally (server save failed)';
-                                setTimeout(() => {
-                                    status.textContent = 'Listening...';
-                                }, 2000);
-                            });
-                        });
-                    }
-                });
+                // Take screenshot, then stop/restart recognition
+                takeScreenshot();
+                recognition.stop();
             } else {
                 currentTranscription = transcript;
                 output.textContent = currentTranscription;
@@ -327,6 +299,42 @@ async function saveTranscription(id, transcriptionText) {
     }
 }
 
+// Take a screenshot of the active normal window tab
+async function takeScreenshot() {
+    const tab = await getActiveNormalTab();
+    if (!tab) {
+        status.textContent = 'No active tab found for screenshot';
+        return;
+    }
+    chrome.tabs.captureVisibleTab(tab.windowId, {format: 'png'}, async function(dataUrl) {
+        if (chrome.runtime.lastError || !dataUrl) {
+            status.textContent = 'Screenshot failed';
+            return;
+        }
+        // Play shutter sound
+        shutterSound.play().catch(err => console.log('Could not play shutter sound:', err));
+
+        // Save locally
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `screenshot_${getNow().replace(/[/:]/g, '-')}.png`;
+        link.click();
+
+        // Save to server
+        const saved = await saveScreenshot(dataUrl);
+
+        // Auto-clear annotations after screenshot
+        chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' }).catch(() => {});
+
+        // Update status
+        status.textContent = saved ? 'Screenshot saved!' : 'Screenshot saved locally (server save failed)';
+        setTimeout(() => {
+            if (isListening) status.textContent = 'Recording...';
+            else status.textContent = 'Ready';
+        }, 2000);
+    });
+}
+
 // Add this function near other utility functions
 async function saveScreenshot(dataUrl) {
     console.log('Saving screenshot');
@@ -472,6 +480,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 });
 
+const screenshotBtn = document.getElementById('screenshotBtn');
+if (screenshotBtn) screenshotBtn.addEventListener('click', takeScreenshot);
 if (drawBtn) drawBtn.addEventListener('click', toggleAnnotation);
 if (toolArrowBtn) toolArrowBtn.addEventListener('click', () => setAnnotationTool('arrow'));
 if (toolFreehandBtn) toolFreehandBtn.addEventListener('click', () => setAnnotationTool('freehand'));
