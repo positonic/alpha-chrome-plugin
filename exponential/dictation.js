@@ -13,6 +13,7 @@ let isStarting = false; // Guard against multiple concurrent startListening call
 let recognition;
 let currentSessionId = null;  // Store the current session ID
 let currentTranscription = ''; // Keep track of accumulated transcription
+let lastSavedTranscription = ''; // Track what's already been saved to server (for delta saves)
 let lastScreenshotTime = 0;
 const SCREENSHOT_COOLDOWN = 2000; // 2 seconds cooldown
 let consecutiveNetworkErrors = 0;
@@ -111,9 +112,13 @@ function initializeSpeechRecognition() {
         console.log('onend: Recognition ended', getNow());
         console.log('onend: Current session ID:', currentSessionId);
         console.log('onend: Current transcription:', currentTranscription);
-        // Always save current transcription
-        if (currentSessionId && currentTranscription) {
-            await saveTranscription(currentSessionId, currentTranscription);
+        // Save only the new text (delta) since last save
+        if (currentSessionId && currentTranscription && currentTranscription !== lastSavedTranscription) {
+            const delta = currentTranscription.slice(lastSavedTranscription.length).trim();
+            if (delta) {
+                await saveTranscription(currentSessionId, delta);
+                lastSavedTranscription = currentTranscription;
+            }
         }
         console.log('onend: isListening:', isListening);
         if (isListening) {
@@ -257,6 +262,7 @@ async function startListening() {
         
         // Clear previous transcription
         currentTranscription = '';
+        lastSavedTranscription = '';
         recognition.start();
 
     } catch (error) {
@@ -334,6 +340,17 @@ async function takeScreenshot() {
 
         // Save to server
         const saved = await saveScreenshot(dataUrl);
+
+        // Insert [SCREENSHOT] marker into transcript
+        if (isListening && currentSessionId) {
+            currentTranscription += (currentTranscription ? ' ' : '') + '[SCREENSHOT]';
+            output.textContent = currentTranscription;
+            const delta = currentTranscription.slice(lastSavedTranscription.length).trim();
+            if (delta) {
+                saveTranscription(currentSessionId, delta);
+                lastSavedTranscription = currentTranscription;
+            }
+        }
 
         // Auto-clear annotations after screenshot
         chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' }).catch(() => {});

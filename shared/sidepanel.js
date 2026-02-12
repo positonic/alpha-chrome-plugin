@@ -42,6 +42,7 @@ let googleEngine = null; // Cached Google engine
 let isListening = false;
 let currentSessionId = null;
 let currentTranscription = '';
+let lastSavedTranscription = ''; // Track what's already been saved to server (for delta saves)
 let lastScreenshotTime = 0;
 const SCREENSHOT_COOLDOWN = 2000; // 2 seconds cooldown
 
@@ -329,6 +330,12 @@ function handleScreenshotCommand(transcript) {
             // Replace screenshot command text with [SCREENSHOT] marker in transcript
             currentTranscription = currentTranscription.replace(/take\s+a?\s*screenshot/gi, '[SCREENSHOT]');
             output.textContent = currentTranscription;
+            // Save the updated transcript with [SCREENSHOT] marker as a delta
+            const delta = currentTranscription.slice(lastSavedTranscription.length).trim();
+            if (delta) {
+                saveTranscription(currentSessionId, delta);
+                lastSavedTranscription = currentTranscription;
+            }
 
             // Auto-clear annotations after screenshot
             chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' }).catch(() => {});
@@ -362,6 +369,18 @@ async function takeScreenshot() {
         link.click();
         // Save to server
         const saved = await saveScreenshot(dataUrl);
+
+        // Insert [SCREENSHOT] marker into transcript
+        if (isListening && currentSessionId) {
+            currentTranscription += (currentTranscription ? ' ' : '') + '[SCREENSHOT]';
+            output.textContent = currentTranscription;
+            const delta = currentTranscription.slice(lastSavedTranscription.length).trim();
+            if (delta) {
+                saveTranscription(currentSessionId, delta);
+                lastSavedTranscription = currentTranscription;
+            }
+        }
+
         // Auto-clear annotations after screenshot
         chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' }).catch(() => {});
         // Update status
@@ -502,9 +521,15 @@ function wireEngine(eng) {
         // otherwise Whisper's incremental chunks re-trigger it every time)
         handleScreenshotCommand(text);
 
-        // Auto-save
-        if (currentSessionId && currentTranscription) {
-            saveTranscription(currentSessionId, currentTranscription);
+        // Auto-save only the new text (delta) to avoid snowball duplication
+        if (currentSessionId && currentTranscription && currentTranscription !== lastSavedTranscription) {
+            const delta = currentTranscription.slice(lastSavedTranscription.length).trim();
+            if (delta) {
+                const saved = saveTranscription(currentSessionId, delta);
+                if (saved !== false) {
+                    lastSavedTranscription = currentTranscription;
+                }
+            }
         }
     };
 
@@ -614,6 +639,7 @@ async function startListening() {
         output.textContent = '';
         sessionUrl.style.display = 'none';
         currentTranscription = '';
+        lastSavedTranscription = '';
 
         // Start server session
         await startServerSession();
@@ -632,9 +658,13 @@ async function stopListening() {
     isListening = false;
     if (engine) engine.stop();
 
-    // Save final transcription
-    if (currentSessionId && currentTranscription) {
-        await saveTranscription(currentSessionId, currentTranscription);
+    // Save final transcription (only the delta since last save)
+    if (currentSessionId && currentTranscription && currentTranscription !== lastSavedTranscription) {
+        const delta = currentTranscription.slice(lastSavedTranscription.length).trim();
+        if (delta) {
+            await saveTranscription(currentSessionId, delta);
+            lastSavedTranscription = currentTranscription;
+        }
     }
 
     statusEl.textContent = 'Ready';
