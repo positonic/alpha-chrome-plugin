@@ -63,6 +63,9 @@ async function transcribe(audioData) {
     }
 
     try {
+        console.log('[whisper-worker] transcribe: audioData.length =', audioData.length,
+            '(expected ~' + (16000 * 5) + ' at 16kHz or ~' + (48000 * 5) + ' at 48kHz)');
+
         const result = await transcriber(audioData, {
             chunk_length_s: 30,
             stride_length_s: 5

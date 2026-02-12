@@ -102,7 +102,7 @@ class WhisperSpeechEngine {
             // Create source and processor
             const source = this.audioContext.createMediaStreamSource(this.mediaStream);
             this.processorNode = new AudioWorkletNode(this.audioContext, 'audio-chunk-processor', {
-                processorOptions: { chunkDuration: 5, overlap: 1 }
+                processorOptions: { chunkDuration: 5 }
             });
 
             // Handle audio chunks from the worklet

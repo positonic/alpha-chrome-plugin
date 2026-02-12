@@ -158,6 +158,73 @@
         font-size: 12px;
         font-weight: 500;
       }
+
+      /* Annotation controls */
+      .annotation-controls {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+        align-items: center;
+      }
+      .btn-draw {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        flex-shrink: 0;
+        width: auto;
+        padding: 10px 16px;
+        margin-bottom: 0;
+      }
+      .btn-draw:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      }
+      .btn-draw.active {
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+      }
+      .tool-toggle {
+        display: none;
+        gap: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 2px solid #e5e7eb;
+        background: white;
+      }
+      .tool-toggle.visible {
+        display: flex;
+      }
+      .tool-toggle button {
+        flex: 1;
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 0;
+        font-size: 11px;
+        font-weight: 600;
+        background: white;
+        color: #6b7280;
+        box-shadow: none;
+        border: none;
+        width: auto;
+      }
+      .tool-toggle button:hover {
+        transform: none;
+        background: #f3f4f6;
+      }
+      .tool-toggle button.active {
+        background: #ef4444;
+        color: white;
+      }
+      .btn-clear {
+        background: #6b7280 !important;
+        color: white !important;
+        flex-shrink: 0;
+        width: auto;
+        padding: 8px 12px;
+        margin-bottom: 0;
+        font-size: 11px;
+      }
+      .btn-clear:hover {
+        background: #4b5563 !important;
+      }
     </style>
   </head>
   <body>
@@ -177,6 +244,16 @@
 
     <div class="status-bar">Status: <span id="status">Ready</span></div>
     <button id="toggleDictation" class="btn-primary">Start Recording</button>
+
+    <!-- Annotation controls -->
+    <div class="annotation-controls">
+      <button id="toggleDraw" class="btn-draw" title="Toggle drawing mode (Ctrl+Shift+D)">Draw</button>
+      <div class="tool-toggle" id="toolToggle">
+        <button id="toolArrow" class="active" title="Arrow tool">Arrow</button>
+        <button id="toolFreehand" title="Freehand tool">Freehand</button>
+      </div>
+      <button id="clearAnnotations" class="btn-clear" title="Clear all annotations" style="display:none;">Clear</button>
+    </div>
 
     <div class="output-header">
       <span class="output-label">Transcribed text:</span>

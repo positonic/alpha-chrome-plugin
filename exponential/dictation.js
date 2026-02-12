@@ -166,6 +166,9 @@ function initializeSpeechRecognition() {
                             // Save to server
                             const saved = await saveScreenshot(dataUrl);
 
+                            // Auto-clear annotations after screenshot
+                            chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' }).catch(() => {});
+
                             // Replace screenshot commands with marker in the transcript
                             transcript = transcriptLower
                                 .replace(/take\s+a?\s*screenshot/g, '[SCREENSHOT]');
@@ -403,6 +406,97 @@ toggleButton.onclick = () => {
         stopListening();
     }
 };
+
+// --- Annotation overlay control ---
+
+let annotationActive = false;
+let annotationTool = 'arrow';
+
+const drawBtn = document.getElementById('toggleDraw');
+const toolToggle = document.getElementById('toolToggle');
+const toolArrowBtn = document.getElementById('toolArrow');
+const toolFreehandBtn = document.getElementById('toolFreehand');
+const clearBtn = document.getElementById('clearAnnotations');
+
+async function getActiveNormalTab() {
+    const tabs = await chrome.tabs.query({ active: true, windowType: 'normal' });
+    return tabs[0] || null;
+}
+
+async function ensureAnnotationInjected(tabId) {
+    try {
+        const response = await chrome.tabs.sendMessage(tabId, { type: 'annotation-ping' });
+        if (response && response.injected) return true;
+    } catch (e) {
+        // Not injected yet — inject now
+    }
+    await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['annotation-overlay.js']
+    });
+    return true;
+}
+
+async function toggleAnnotation() {
+    const tab = await getActiveNormalTab();
+    if (!tab) return;
+    await ensureAnnotationInjected(tab.id);
+    annotationActive = !annotationActive;
+    await chrome.tabs.sendMessage(tab.id, {
+        type: 'annotation-toggle',
+        enabled: annotationActive
+    });
+    updateAnnotationUI();
+}
+
+async function clearAnnotations() {
+    const tab = await getActiveNormalTab();
+    if (!tab) return;
+    try {
+        await chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' });
+    } catch (e) {
+        // Content script not present
+    }
+}
+
+async function setAnnotationTool(tool) {
+    annotationTool = tool;
+    const tab = await getActiveNormalTab();
+    if (tab) {
+        try {
+            await chrome.tabs.sendMessage(tab.id, { type: 'annotation-set-tool', tool });
+        } catch (e) {
+            // Content script not present
+        }
+    }
+    updateAnnotationUI();
+}
+
+function updateAnnotationUI() {
+    if (drawBtn) {
+        drawBtn.textContent = annotationActive ? 'Drawing' : 'Draw';
+        drawBtn.classList.toggle('active', annotationActive);
+    }
+    if (toolToggle) {
+        toolToggle.classList.toggle('visible', annotationActive);
+    }
+    if (toolArrowBtn) toolArrowBtn.classList.toggle('active', annotationTool === 'arrow');
+    if (toolFreehandBtn) toolFreehandBtn.classList.toggle('active', annotationTool === 'freehand');
+    if (clearBtn) clearBtn.style.display = annotationActive ? 'inline-block' : 'none';
+}
+
+// Listen for keyboard shortcut toggle from background script
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'toggle-annotation-command') {
+        toggleAnnotation();
+        sendResponse({ ok: true });
+    }
+});
+
+if (drawBtn) drawBtn.addEventListener('click', toggleAnnotation);
+if (toolArrowBtn) toolArrowBtn.addEventListener('click', () => setAnnotationTool('arrow'));
+if (toolFreehandBtn) toolFreehandBtn.addEventListener('click', () => setAnnotationTool('freehand'));
+if (clearBtn) clearBtn.addEventListener('click', clearAnnotations);
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {

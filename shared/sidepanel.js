@@ -161,6 +161,9 @@ function handleScreenshotCommand(transcript) {
             currentTranscription = currentTranscription.replace(/take\s+a?\s*screenshot/gi, '[SCREENSHOT]');
             output.textContent = currentTranscription;
 
+            // Auto-clear annotations after screenshot
+            chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' }).catch(() => {});
+
             statusEl.textContent = saved ? 'Screenshot saved!' : 'Screenshot saved locally (server save failed)';
             setTimeout(() => { if (isListening) statusEl.textContent = 'Recording...'; }, 2000);
         });
@@ -168,6 +171,97 @@ function handleScreenshotCommand(transcript) {
 
     return true;
 }
+
+// --- Annotation overlay control ---
+
+let annotationActive = false;
+let annotationTool = 'arrow';
+
+const drawBtn = document.getElementById('toggleDraw');
+const toolToggle = document.getElementById('toolToggle');
+const toolArrowBtn = document.getElementById('toolArrow');
+const toolFreehandBtn = document.getElementById('toolFreehand');
+const clearBtn = document.getElementById('clearAnnotations');
+
+async function getActiveNormalTab() {
+    const tabs = await chrome.tabs.query({ active: true, windowType: 'normal' });
+    return tabs[0] || null;
+}
+
+async function ensureAnnotationInjected(tabId) {
+    try {
+        const response = await chrome.tabs.sendMessage(tabId, { type: 'annotation-ping' });
+        if (response && response.injected) return true;
+    } catch (e) {
+        // Not injected yet — inject now
+    }
+    await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['annotation-overlay.js']
+    });
+    return true;
+}
+
+async function toggleAnnotation() {
+    const tab = await getActiveNormalTab();
+    if (!tab) return;
+    await ensureAnnotationInjected(tab.id);
+    annotationActive = !annotationActive;
+    await chrome.tabs.sendMessage(tab.id, {
+        type: 'annotation-toggle',
+        enabled: annotationActive
+    });
+    updateAnnotationUI();
+}
+
+async function clearAnnotations() {
+    const tab = await getActiveNormalTab();
+    if (!tab) return;
+    try {
+        await chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' });
+    } catch (e) {
+        // Content script not present — nothing to clear
+    }
+}
+
+async function setAnnotationTool(tool) {
+    annotationTool = tool;
+    const tab = await getActiveNormalTab();
+    if (tab) {
+        try {
+            await chrome.tabs.sendMessage(tab.id, { type: 'annotation-set-tool', tool });
+        } catch (e) {
+            // Content script not present
+        }
+    }
+    updateAnnotationUI();
+}
+
+function updateAnnotationUI() {
+    if (drawBtn) {
+        drawBtn.textContent = annotationActive ? 'Drawing' : 'Draw';
+        drawBtn.classList.toggle('active', annotationActive);
+    }
+    if (toolToggle) {
+        toolToggle.classList.toggle('visible', annotationActive);
+    }
+    if (toolArrowBtn) toolArrowBtn.classList.toggle('active', annotationTool === 'arrow');
+    if (toolFreehandBtn) toolFreehandBtn.classList.toggle('active', annotationTool === 'freehand');
+    if (clearBtn) clearBtn.style.display = annotationActive ? 'inline-block' : 'none';
+}
+
+// Listen for keyboard shortcut toggle from background script
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'toggle-annotation-command') {
+        toggleAnnotation();
+        sendResponse({ ok: true });
+    }
+});
+
+if (drawBtn) drawBtn.addEventListener('click', toggleAnnotation);
+if (toolArrowBtn) toolArrowBtn.addEventListener('click', () => setAnnotationTool('arrow'));
+if (toolFreehandBtn) toolFreehandBtn.addEventListener('click', () => setAnnotationTool('freehand'));
+if (clearBtn) clearBtn.addEventListener('click', clearAnnotations);
 
 // --- Engine management ---
 
@@ -187,43 +281,14 @@ function createEngine(type) {
     }
 }
 
-// Deduplicate overlapping text from Whisper chunks.
-// Whisper may return text that overlaps with what we already have
-// (due to audio chunk overlap or cumulative transcription behavior).
-// Find the longest suffix of `existing` that matches a prefix of `newText`
-// and return only the non-overlapping portion.
-function deduplicateOverlap(existing, newText) {
-    if (!existing || !newText) return newText;
-
-    const existingWords = existing.trim().split(/\s+/);
-    const newWords = newText.trim().split(/\s+/);
-
-    // Try progressively smaller overlaps (minimum 3 words to avoid false matches)
-    const maxOverlap = Math.min(existingWords.length, newWords.length);
-    for (let len = maxOverlap; len >= 3; len--) {
-        const suffix = existingWords.slice(-len).join(' ').toLowerCase();
-        const prefix = newWords.slice(0, len).join(' ').toLowerCase();
-        if (suffix === prefix) {
-            // Found overlap — return only the new portion
-            const remaining = newWords.slice(len).join(' ');
-            return remaining;
-        }
-    }
-    // No significant overlap found — return full text
-    return newText;
-}
-
 function wireEngine(eng) {
     // Called when new transcript text arrives from either engine.
     // For Google, this is the full accumulated transcript per recognition session.
-    // For Whisper, this is an incremental chunk (may overlap with previous).
+    // For Whisper, each chunk is an independent 5-second transcription.
     eng.onresult = (text) => {
         if (currentEngine === 'whisper') {
-            // Whisper chunks may overlap with existing text — deduplicate before appending
-            const newPortion = deduplicateOverlap(currentTranscription, text);
-            if (newPortion) {
-                currentTranscription += (currentTranscription ? ' ' : '') + newPortion;
-            }
+            // Whisper returns independent chunks — append
+            currentTranscription += (currentTranscription ? ' ' : '') + text;
         } else {
             // Google returns full transcript per recognition session
             currentTranscription = text;

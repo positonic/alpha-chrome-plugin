@@ -100,7 +100,7 @@ EOF
 fi
 
 # Clean up copied shared files from source directories
-SHARED_FILES="shutter.mp3 timeout.mp3 audio-processor.js whisper-worker.js whisper-worker.bundle.js speech-engine-google.js speech-engine-whisper.js sidepanel.html sidepanel.js background.js permissions.html permissions.js ort-wasm-simd-threaded.jsep.mjs ort-wasm-simd-threaded.jsep.wasm ort-wasm-simd-threaded.mjs ort-wasm-simd-threaded.wasm"
+SHARED_FILES="shutter.mp3 timeout.mp3 audio-processor.js whisper-worker.js whisper-worker.bundle.js speech-engine-google.js speech-engine-whisper.js sidepanel.html sidepanel.js background.js permissions.html permissions.js annotation-overlay.js ort-wasm-simd-threaded.jsep.mjs ort-wasm-simd-threaded.jsep.wasm ort-wasm-simd-threaded.mjs ort-wasm-simd-threaded.wasm"
 for f in $SHARED_FILES; do
     rm -f "exponential/$f" "tradescape/$f"
 done
