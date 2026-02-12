@@ -141,10 +141,14 @@ function initializeSpeechRecognition() {
             
             console.log('recognition.onresult: Original transcript:', transcript);
             
-            // Check for screenshot commands
-            const transcriptLower = transcript.toLowerCase();
-            if (transcriptLower.includes('take screenshot') || transcriptLower.includes('take a screenshot')) {
+            // Check for screenshot commands - normalize whitespace to handle non-breaking spaces from speech recognition
+            const transcriptLower = transcript.toLowerCase().replace(/\s+/g, ' ');
+            const screenshotMatch = /take\s+a?\s*screenshot/.test(transcriptLower);
+            console.log('recognition.onresult: Screenshot check:', screenshotMatch);
+            if (screenshotMatch) {
+                console.log('recognition.onresult: Screenshot command detected, querying tabs...');
                 chrome.tabs.query({active: true, lastFocusedWindow: true}, function(tabs) {
+                    console.log('recognition.onresult: tabs.query result:', tabs?.length, 'tabs');
                     if (tabs[0]) {
                         chrome.windows.get(tabs[0].windowId, function(parentWindow) {
                             chrome.tabs.captureVisibleTab(parentWindow.id, {format: 'png'}, async function(dataUrl) {
@@ -160,10 +164,9 @@ function initializeSpeechRecognition() {
                                 // Save to server
                                 const saved = await saveScreenshot(dataUrl);
                                 
-                                // Replace both possible commands with marker in the transcript
+                                // Replace screenshot commands with marker in the transcript
                                 transcript = transcriptLower
-                                    .replace('take screenshot', '[SCREENSHOT]')
-                                    .replace('take a screenshot', '[SCREENSHOT]');
+                                    .replace(/take\s+a?\s*screenshot/g, '[SCREENSHOT]');
                                 currentTranscription = transcript;
                                 output.textContent = currentTranscription;
                                 
