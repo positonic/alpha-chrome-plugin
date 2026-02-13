@@ -41,6 +41,8 @@ const tabRecordingBtn = document.getElementById('tabRecording');
 const panelSavePage = document.getElementById('panelSavePage');
 const panelRecording = document.getElementById('panelRecording');
 const savePageBtn = document.getElementById('savePageBtn');
+const savePageContext = document.getElementById('savePageContext');
+const savePageStatus = document.getElementById('savePageStatus');
 
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
 const hasProjects = EXTENSION_CONFIG.hasProjects;
@@ -95,6 +97,26 @@ function getNow() {
     const minutes = '00';
     const seconds = String(now.getSeconds()).padStart(2, '0');
     return `${month}/${day} ${hours}:${minutes}:${seconds}`;
+}
+
+// --- Save Page helpers ---
+
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function formatActionName(url, title, context) {
+    const safeUrl = url.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    const displayText = title ? escapeHtml(title) : safeUrl;
+    const link = `<a href="${safeUrl}">${displayText}</a>`;
+    if (context && context.trim()) {
+        return `${escapeHtml(context.trim())}: ${link}`;
+    }
+    return link;
 }
 
 // --- Setup / configuration ---
@@ -783,10 +805,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Save Page button
     if (savePageBtn) {
         savePageBtn.addEventListener('click', async () => {
+            if (savePageStatus) {
+                savePageStatus.textContent = '';
+                savePageStatus.className = 'save-page-status';
+            }
             const tab = await getActiveNormalTab();
             if (!tab) {
-                savePageBtn.textContent = 'No active tab found';
-                setTimeout(() => { savePageBtn.textContent = 'Save Page'; }, 2000);
+                if (savePageStatus) {
+                    savePageStatus.textContent = 'No active tab found';
+                    savePageStatus.className = 'save-page-status error';
+                }
                 return;
             }
             savePageBtn.disabled = true;
@@ -794,19 +822,45 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const apiKey = await getApiKey();
                 const projectId = await getProjectId();
-                const response = await fetch(`${apiBaseURL}/api/trpc/page.savePage`, {
+                const context = savePageContext ? savePageContext.value : '';
+                const name = formatActionName(tab.url, tab.title, context);
+                const body = {
+                    json: {
+                        name,
+                        priority: 'Quick',
+                        source: 'chrome-extension',
+                        parseNaturalLanguage: false,
+                    }
+                };
+                if (projectId && projectId !== 'default') {
+                    body.json.projectId = projectId;
+                }
+                const response = await fetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-                    body: JSON.stringify({ json: { projectId, url: tab.url, title: tab.title } })
+                    body: JSON.stringify(body)
                 });
                 if (response.ok) {
-                    savePageBtn.textContent = 'Page Saved!';
+                    savePageBtn.textContent = 'Saved!';
+                    if (savePageStatus) {
+                        savePageStatus.textContent = 'Action created';
+                        savePageStatus.className = 'save-page-status success';
+                    }
+                    if (savePageContext) savePageContext.value = '';
                 } else {
                     savePageBtn.textContent = 'Save Failed';
+                    if (savePageStatus) {
+                        savePageStatus.textContent = 'Failed to save';
+                        savePageStatus.className = 'save-page-status error';
+                    }
                 }
             } catch (error) {
                 console.error('Error saving page:', error);
                 savePageBtn.textContent = 'Save Failed';
+                if (savePageStatus) {
+                    savePageStatus.textContent = 'Network error';
+                    savePageStatus.className = 'save-page-status error';
+                }
             }
             setTimeout(() => {
                 savePageBtn.disabled = false;

@@ -156,7 +156,23 @@
         display: block;
       }
 
-      /* Save page button */
+      /* Save page */
+      .save-page-input {
+        width: 100%;
+        padding: 10px 14px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 14px;
+        background: white;
+        transition: border-color 0.2s ease;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+      }
+      .save-page-input:focus {
+        outline: none;
+        border-color: #2D68E5;
+        box-shadow: 0 0 0 3px rgba(45, 104, 229, 0.1);
+      }
       .btn-save-page {
         background: linear-gradient(135deg, #059669 0%, #047857 100%);
         box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
@@ -165,6 +181,14 @@
         background: linear-gradient(135deg, #047857 0%, #065f46 100%);
         box-shadow: 0 6px 16px rgba(5, 150, 105, 0.4);
       }
+      .save-page-status {
+        font-size: 13px;
+        font-weight: 500;
+        min-height: 18px;
+        margin-top: 4px;
+      }
+      .save-page-status.success { color: #059669; }
+      .save-page-status.error { color: #dc3545; }
 
       /* Model progress */
       .model-status {
@@ -459,7 +483,9 @@
 
     <!-- Tab 1: Save Page -->
     <div class="tab-panel active" id="panelSavePage">
+      <input type="text" class="save-page-input" id="savePageContext" placeholder="Add context (optional)...">
       <button class="btn-save-page" id="savePageBtn">Save Page</button>
+      <div class="save-page-status" id="savePageStatus"></div>
     </div>
 
     <!-- Tab 2: Recording (contains all existing dictation UI) -->
