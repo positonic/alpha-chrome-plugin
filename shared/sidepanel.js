@@ -4,6 +4,7 @@ const toggleButton = document.getElementById('toggleDictation');
 const output = document.getElementById('output');
 const statusEl = document.getElementById('status');
 const sessionUrl = document.getElementById('session-url');
+const recordingNameInput = document.getElementById('recordingName');
 const modelStatusEl = document.getElementById('modelStatus');
 const modelStatusText = document.getElementById('modelStatusText');
 const modelProgressBar = document.getElementById('modelProgressBar');
@@ -541,11 +542,12 @@ async function initEngine() {
 async function startServerSession() {
     const headers = await buildAuthHeaders();
     const projectId = (sharedProject && sharedProject.value) || await getProjectId();
+    const title = recordingNameInput ? recordingNameInput.value.trim() || null : null;
 
     const response = await fetch(`${apiBaseURL}/api/trpc/transcription.startSession`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ json: { projectId } })
+        body: JSON.stringify({ json: { projectId, title } })
     });
 
     if (!response.ok) {
