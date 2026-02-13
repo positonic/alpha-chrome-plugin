@@ -458,17 +458,27 @@ async function ensureAnnotationInjected(tabId) {
     } catch (e) {
         // Not injected yet — inject now
     }
-    await chrome.scripting.executeScript({
-        target: { tabId },
-        files: ['annotation-overlay.js']
-    });
-    return true;
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ['annotation-overlay.js']
+        });
+        return true;
+    } catch (e) {
+        console.warn('Cannot inject annotation script:', e.message);
+        return false;
+    }
 }
 
 async function toggleAnnotation() {
     const tab = await getActiveNormalTab();
     if (!tab) return;
-    await ensureAnnotationInjected(tab.id);
+    const injected = await ensureAnnotationInjected(tab.id);
+    if (!injected) {
+        statusEl.textContent = 'Cannot draw on this page';
+        setTimeout(() => { statusEl.textContent = 'Ready'; }, 2000);
+        return;
+    }
     annotationActive = !annotationActive;
     await chrome.tabs.sendMessage(tab.id, {
         type: 'annotation-toggle',
