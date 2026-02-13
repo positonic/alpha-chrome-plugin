@@ -37,12 +37,12 @@
         transform: none;
       }
       .btn-primary {
-        background: linear-gradient(135deg, #64A1F8 0%, #4F89E8 100%);
-        box-shadow: 0 4px 12px rgba(100, 161, 248, 0.3);
+        background: linear-gradient(135deg, #447AED 0%, #2D68E5 100%);
+        box-shadow: 0 4px 12px rgba(45, 104, 229, 0.3);
       }
       .btn-primary:hover {
-        background: linear-gradient(135deg, #4F89E8 0%, #3B73D8 100%);
-        box-shadow: 0 6px 16px rgba(100, 161, 248, 0.4);
+        background: linear-gradient(135deg, #2D68E5 0%, #2458C4 100%);
+        box-shadow: 0 6px 16px rgba(45, 104, 229, 0.4);
       }
       .btn-recording {
         background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
@@ -77,7 +77,7 @@
         border: 2px solid #e5e7eb;
       }
       .listening {
-        color: #64A1F8;
+        color: #2D68E5;
         font-weight: 600;
       }
 
@@ -109,8 +109,61 @@
         background: #f3f4f6;
       }
       .engine-toggle button.active {
-        background: #1e40af;
+        background: #2D68E5;
         color: white;
+      }
+
+      /* Panel tabs (Save Page / Recording) */
+      .panel-tabs {
+        display: none;
+      }
+      .panel-tabs.visible {
+        display: flex;
+        gap: 0;
+        margin-bottom: 14px;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px solid #e5e7eb;
+        background: white;
+      }
+      .panel-tabs button {
+        flex: 1;
+        margin: 0;
+        padding: 12px 14px;
+        border-radius: 0;
+        font-size: 13px;
+        font-weight: 600;
+        background: white;
+        color: #6b7280;
+        box-shadow: none;
+        border: none;
+        transition: all 0.15s ease;
+      }
+      .panel-tabs button:hover {
+        transform: none;
+        background: #f3f4f6;
+      }
+      .panel-tabs button.active {
+        background: #2D68E5;
+        color: white;
+      }
+
+      /* Tab content panels */
+      .tab-panel {
+        display: none;
+      }
+      .tab-panel.active {
+        display: block;
+      }
+
+      /* Save page button */
+      .btn-save-page {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+      }
+      .btn-save-page:hover {
+        background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+        box-shadow: 0 6px 16px rgba(5, 150, 105, 0.4);
       }
 
       /* Model progress */
@@ -129,7 +182,7 @@
         margin-top: 6px;
       }
       .progress-bar-fill {
-        background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+        background: linear-gradient(90deg, #447AED, #2D68E5);
         height: 100%;
         width: 0%;
         transition: width 0.3s ease;
@@ -153,7 +206,7 @@
       }
       #session-url {
         display: none;
-        color: #1C7ED6;
+        color: #2D68E5;
         text-decoration: none;
         font-size: 12px;
         font-weight: 500;
@@ -254,8 +307,8 @@
       }
       .setup-input:focus {
         outline: none;
-        border-color: #64A1F8;
-        box-shadow: 0 0 0 3px rgba(100, 161, 248, 0.1);
+        border-color: #2D68E5;
+        box-shadow: 0 0 0 3px rgba(45, 104, 229, 0.1);
       }
       .setup-select {
         width: 100%;
@@ -270,8 +323,8 @@
       }
       .setup-select:focus {
         outline: none;
-        border-color: #64A1F8;
-        box-shadow: 0 0 0 3px rgba(100, 161, 248, 0.1);
+        border-color: #2D68E5;
+        box-shadow: 0 0 0 3px rgba(45, 104, 229, 0.1);
       }
       .setup-status {
         font-size: 13px;
@@ -375,6 +428,7 @@
     <div id="setupSection">
       <div class="setup-card" id="apiKeyCard">
         <h2>API Key Required</h2>
+        <a href="https://exponential.im/settings/api-keys" target="_blank" style="display:inline-block;margin-bottom:10px;font-size:13px;color:#2D68E5;font-weight:500;">Get your API key</a>
         <input type="text" id="apiKeyInput" class="setup-input" placeholder="Enter your API key">
         <button class="btn-primary" id="saveApiKeyBtn">Save API Key</button>
         <div class="setup-status" id="apiKeyStatus"></div>
@@ -390,6 +444,20 @@
 
     <!-- Dictation UI (hidden until setup complete) -->
     <div id="dictationUI" class="hidden">
+
+    <!-- Panel-level tabs (conditionally shown by JS based on hasSavePage config) -->
+    <div class="panel-tabs" id="panelTabs">
+      <button id="tabSavePage" class="active">Save Page</button>
+      <button id="tabRecording">Recording</button>
+    </div>
+
+    <!-- Tab 1: Save Page -->
+    <div class="tab-panel active" id="panelSavePage">
+      <button class="btn-save-page" id="savePageBtn">Save Page</button>
+    </div>
+
+    <!-- Tab 2: Recording (contains all existing dictation UI) -->
+    <div class="tab-panel" id="panelRecording">
 
     <!-- Engine toggle -->
     <div class="engine-toggle">
@@ -424,6 +492,8 @@
       <a id="session-url" href="#" target="_blank">View recording</a>
     </div>
     <div id="output">Click "Start Recording" and speak into your microphone...</div>
+
+    </div><!-- end #panelRecording -->
 
     </div><!-- end #dictationUI -->
 

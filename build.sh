@@ -46,6 +46,7 @@ const EXTENSION_CONFIG = {
     name: "Exponential Whisper",
     apiBaseURL: "http://localhost:3000",
     hasProjects: true,
+    hasSavePage: true,
     projects: [] // Will be loaded dynamically from API
 };
 EOF
@@ -60,6 +61,7 @@ const EXTENSION_CONFIG = {
     name: "Tradescape",
     apiBaseURL: "http://localhost:3000",
     hasProjects: false,
+    hasSavePage: false,
     projects: [] // No projects for Tradescape
 };
 EOF
@@ -78,6 +80,7 @@ const EXTENSION_CONFIG = {
     name: "Exponential Whisper",
     apiBaseURL: "https://www.exponential.im",
     hasProjects: true,
+    hasSavePage: true,
     projects: [] // Will be loaded dynamically from API
 };
 EOF
@@ -92,6 +95,7 @@ const EXTENSION_CONFIG = {
     name: "Tradescape",
     apiBaseURL: "https://tradetronic.vercel.app",
     hasProjects: false,
+    hasSavePage: false,
     projects: [] // No projects for Tradescape
 };
 EOF

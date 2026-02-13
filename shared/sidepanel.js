@@ -34,8 +34,17 @@ const changeProjectBtn = document.getElementById('changeProjectBtn');
 const changeProjectSection = document.getElementById('changeProjectSection');
 const changeProjectDropdown = document.getElementById('changeProjectDropdown');
 
+// Tab elements
+const panelTabs = document.getElementById('panelTabs');
+const tabSavePageBtn = document.getElementById('tabSavePage');
+const tabRecordingBtn = document.getElementById('tabRecording');
+const panelSavePage = document.getElementById('panelSavePage');
+const panelRecording = document.getElementById('panelRecording');
+const savePageBtn = document.getElementById('savePageBtn');
+
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
 const hasProjects = EXTENSION_CONFIG.hasProjects;
+const hasSavePage = EXTENSION_CONFIG.hasSavePage || false;
 
 let currentEngine = null; // 'whisper' or 'google'
 let engine = null; // The active speech engine instance
@@ -730,6 +739,70 @@ document.addEventListener('DOMContentLoaded', async () => {
         const url = new URL(apiBaseURL);
         testModeBadge.textContent = 'TEST - Port ' + url.port;
         testModeBadge.classList.remove('hidden');
+    }
+
+    // Initialize panel tabs based on config
+    if (hasSavePage) {
+        panelTabs.classList.add('visible');
+        panelSavePage.classList.add('active');
+        panelRecording.classList.remove('active');
+    } else {
+        panelTabs.classList.remove('visible');
+        panelSavePage.classList.remove('active');
+        panelRecording.classList.add('active');
+    }
+
+    // Tab switching
+    if (tabSavePageBtn) {
+        tabSavePageBtn.addEventListener('click', () => {
+            tabSavePageBtn.classList.add('active');
+            tabRecordingBtn.classList.remove('active');
+            panelSavePage.classList.add('active');
+            panelRecording.classList.remove('active');
+        });
+    }
+    if (tabRecordingBtn) {
+        tabRecordingBtn.addEventListener('click', () => {
+            tabRecordingBtn.classList.add('active');
+            tabSavePageBtn.classList.remove('active');
+            panelRecording.classList.add('active');
+            panelSavePage.classList.remove('active');
+        });
+    }
+
+    // Save Page button
+    if (savePageBtn) {
+        savePageBtn.addEventListener('click', async () => {
+            const tab = await getActiveNormalTab();
+            if (!tab) {
+                savePageBtn.textContent = 'No active tab found';
+                setTimeout(() => { savePageBtn.textContent = 'Save Page'; }, 2000);
+                return;
+            }
+            savePageBtn.disabled = true;
+            savePageBtn.textContent = 'Saving...';
+            try {
+                const apiKey = await getApiKey();
+                const projectId = await getProjectId();
+                const response = await fetch(`${apiBaseURL}/api/trpc/page.savePage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                    body: JSON.stringify({ json: { projectId, url: tab.url, title: tab.title } })
+                });
+                if (response.ok) {
+                    savePageBtn.textContent = 'Page Saved!';
+                } else {
+                    savePageBtn.textContent = 'Save Failed';
+                }
+            } catch (error) {
+                console.error('Error saving page:', error);
+                savePageBtn.textContent = 'Save Failed';
+            }
+            setTimeout(() => {
+                savePageBtn.disabled = false;
+                savePageBtn.textContent = 'Save Page';
+            }, 2000);
+        });
     }
 
     // Check setup state — only initialize engines if fully configured

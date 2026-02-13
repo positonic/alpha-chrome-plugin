@@ -128,8 +128,8 @@ function initializeSpeechRecognition() {
         } else {
             // Reset UI when not restarting (e.g., after network errors)
             toggleButton.textContent = 'Start Recording';
-            toggleButton.style.background = 'linear-gradient(135deg, #64A1F8 0%, #4F89E8 100%)';
-            toggleButton.style.boxShadow = '0 4px 12px rgba(100, 161, 248, 0.3)';
+            toggleButton.style.background = 'linear-gradient(135deg, #447AED 0%, #2D68E5 100%)';
+            toggleButton.style.boxShadow = '0 4px 12px rgba(45, 104, 229, 0.3)';
             if (currentSessionId) {
                 sessionUrl.style.display = 'inline';
             }
@@ -413,8 +413,8 @@ async function stopListening() {
     status.textContent = 'Ready';
     status.className = '';
     toggleButton.textContent = 'Start Recording';
-    toggleButton.style.background = 'linear-gradient(135deg, #64A1F8 0%, #4F89E8 100%)';
-    toggleButton.style.boxShadow = '0 4px 12px rgba(100, 161, 248, 0.3)';
+    toggleButton.style.background = 'linear-gradient(135deg, #447AED 0%, #2D68E5 100%)';
+    toggleButton.style.boxShadow = '0 4px 12px rgba(45, 104, 229, 0.3)';
     // Show session link now that recording is finished
     if (currentSessionId) {
         sessionUrl.style.display = 'inline';
@@ -526,6 +526,6 @@ if (clearBtn) clearBtn.addEventListener('click', clearAnnotations);
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
     status.textContent = 'Ready';
-    toggleButton.style.background = 'linear-gradient(135deg, #64A1F8 0%, #4F89E8 100%)';
-    toggleButton.style.boxShadow = '0 4px 12px rgba(100, 161, 248, 0.3)';
+    toggleButton.style.background = 'linear-gradient(135deg, #447AED 0%, #2D68E5 100%)';
+    toggleButton.style.boxShadow = '0 4px 12px rgba(45, 104, 229, 0.3)';
 }); 
