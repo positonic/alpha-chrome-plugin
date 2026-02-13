@@ -66,3 +66,23 @@ The extension requires an API key stored in Chrome's local storage (`TRANSCRIPTI
 - Chrome/Chromium only (uses webkitSpeechRecognition)
 - Requires microphone access
 - Uses Chrome Extension Manifest V3
+
+## Workflow — Beads Task Tracking
+
+**All task tracking in this project MUST use beads (`bd`).** Do not use TodoWrite, markdown task lists, or any other tracking method.
+
+### Rules
+- **Before writing code**: Create beads issues for the work (`bd create --title="..." --type=task|bug|feature --priority=2`)
+- **When starting work**: Mark the issue in progress (`bd update <id> --status=in_progress`)
+- **When done**: Close the issue (`bd close <id>`)
+- **Plans → Beads**: When planning multi-step work, create a bead for each step. Use `bd dep add` for ordering dependencies.
+- **Never use** TodoWrite or markdown files for task tracking
+
+### Session Close Protocol
+Before ending a session, always run:
+1. `git status` — check what changed
+2. `git add <files>` — stage code changes
+3. `bd sync` — commit beads changes
+4. `git commit -m "..."` — commit code
+5. `bd sync` — commit any new beads changes
+6. `git push` — push to remote
