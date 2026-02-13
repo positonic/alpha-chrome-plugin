@@ -23,6 +23,21 @@ class WhisperSpeechEngine {
         this.onstart = null;
         this.onstop = null;
         this.onmodelprogress = null;
+
+        // Silence detection — skip chunks quieter than this RMS threshold
+        this.SILENCE_RMS_THRESHOLD = 0.01;
+
+        // Repetition / hallucination detection
+        this.recentResults = [];
+        this.MAX_HISTORY = 5;
+        this.REPEAT_THRESHOLD = 3;
+        this.HALLUCINATION_PATTERNS = [
+            /^\[BLANK_AUDIO\]$/i,
+            /^\(blank audio\)$/i,
+            /^\.+$/,
+            /^,+$/,
+            /^\s*$/,
+        ];
     }
 
     async init() {
@@ -47,7 +62,17 @@ class WhisperSpeechEngine {
                     break;
                 case 'transcription-result':
                     if (this.onresult && event.data.text && event.data.text.trim()) {
-                        this.onresult(event.data.text.trim());
+                        const text = event.data.text.trim();
+
+                        if (this._isHallucinationOrRepetition(text)) {
+                            this.recentResults.push(text);
+                            if (this.recentResults.length > this.MAX_HISTORY) this.recentResults.shift();
+                            break;
+                        }
+
+                        this.recentResults.push(text);
+                        if (this.recentResults.length > this.MAX_HISTORY) this.recentResults.shift();
+                        this.onresult(text);
                     }
                     break;
                 case 'transcription-error':
@@ -109,8 +134,16 @@ class WhisperSpeechEngine {
             this.processorNode.port.onmessage = (event) => {
                 if (event.data.type === 'audio-chunk' && this.isListening) {
                     const audioData = event.data.audio;
-                    // Resample if needed (AudioContext may not honor 16kHz request)
                     const resampled = this._resampleIfNeeded(audioData, event.data.sampleRate, 16000);
+
+                    // Layer 1: Silence detection — skip chunks too quiet for real speech
+                    const rms = this._computeRMS(resampled);
+                    if (rms < this.SILENCE_RMS_THRESHOLD) {
+                        console.log('[whisper] skipping silent chunk (RMS:', rms.toFixed(6), ')');
+                        if (this.onstatuschange) this.onstatuschange('Listening...');
+                        return;
+                    }
+
                     // Transfer the buffer to the worker for inference
                     this.worker.postMessage(
                         { type: 'transcribe', audio: resampled },
@@ -124,6 +157,7 @@ class WhisperSpeechEngine {
             // Don't connect to destination — we don't want playback
 
             this.isListening = true;
+            this.recentResults = [];
             if (this.onstart) this.onstart();
             if (this.onstatuschange) this.onstatuschange('Recording...');
 
@@ -179,5 +213,62 @@ class WhisperSpeechEngine {
 
     getModelStatus() {
         return { ready: this.modelReady, progress: this.modelProgress };
+    }
+
+    _computeRMS(audioData) {
+        let sumSquares = 0;
+        for (let i = 0; i < audioData.length; i++) {
+            sumSquares += audioData[i] * audioData[i];
+        }
+        return Math.sqrt(sumSquares / audioData.length);
+    }
+
+    _isHallucinationOrRepetition(text) {
+        for (const pattern of this.HALLUCINATION_PATTERNS) {
+            if (pattern.test(text)) {
+                console.log('[whisper] filtered hallucination marker:', text);
+                return true;
+            }
+        }
+
+        if (this._hasInternalRepetition(text)) {
+            console.log('[whisper] filtered internal repetition:', text.slice(0, 80));
+            return true;
+        }
+
+        if (this.recentResults.length >= this.REPEAT_THRESHOLD) {
+            const lastN = this.recentResults.slice(-this.REPEAT_THRESHOLD);
+            const allSame = lastN.every(prev => this._textsAreSimilar(prev, text));
+            if (allSame) {
+                console.log('[whisper] filtered cross-chunk repetition:', text.slice(0, 80));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    _hasInternalRepetition(text) {
+        const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+        if (words.length < 6) return false;
+
+        for (let phraseLen = 2; phraseLen <= Math.min(5, Math.floor(words.length / 3)); phraseLen++) {
+            const phrase = words.slice(0, phraseLen).join(' ');
+            let count = 0;
+            for (let i = 0; i <= words.length - phraseLen; i += phraseLen) {
+                if (words.slice(i, i + phraseLen).join(' ') === phrase) {
+                    count++;
+                } else {
+                    break;
+                }
+            }
+            if (count >= 3) return true;
+        }
+        return false;
+    }
+
+    _textsAreSimilar(a, b) {
+        const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+        return normalize(a) === normalize(b);
     }
 }
