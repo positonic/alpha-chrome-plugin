@@ -29,12 +29,12 @@ const clearApiKeyBtn = document.getElementById('clearApiKeyBtn');
 const appNameEl = document.getElementById('appName');
 const testModeBadge = document.getElementById('testModeBadge');
 const currentKeyDisplay = document.getElementById('currentKeyDisplay');
-const currentProjectDisplay = document.getElementById('currentProjectDisplay');
-const changeProjectBtn = document.getElementById('changeProjectBtn');
-const changeProjectSection = document.getElementById('changeProjectSection');
-const changeProjectDropdown = document.getElementById('changeProjectDropdown');
 const setupWorkspaceDropdown = document.getElementById('setupWorkspaceDropdown');
-const changeWorkspaceDropdown = document.getElementById('changeWorkspaceDropdown');
+
+// Shared project selector (above tabs)
+const sharedProjectSelector = document.getElementById('sharedProjectSelector');
+const sharedWorkspace = document.getElementById('sharedWorkspace');
+const sharedProject = document.getElementById('sharedProject');
 
 // Tab elements
 const panelTabs = document.getElementById('panelTabs');
@@ -45,8 +45,6 @@ const panelRecording = document.getElementById('panelRecording');
 const savePageBtn = document.getElementById('savePageBtn');
 const savePageContext = document.getElementById('savePageContext');
 const savePageStatus = document.getElementById('savePageStatus');
-const savePageWorkspace = document.getElementById('savePageWorkspace');
-const savePageProject = document.getElementById('savePageProject');
 
 const autoAuthCard = document.getElementById('autoAuthCard');
 
@@ -272,75 +270,45 @@ async function populateWorkspaceAndProjectDropdowns(wsSelect, projSelect, presel
     return workspaces;
 }
 
-async function updateProjectDisplayLabel(workspaceId, projectId) {
-    let label = '';
-    if (workspaceId) {
-        try {
-            const workspaces = await fetchWorkspaces();
-            const ws = workspaces.find(w => w.id === workspaceId);
-            if (ws) label += ws.name;
-        } catch (e) { /* ignore */ }
-    }
-    if (projectId) {
-        try {
-            const projects = workspaceId
-                ? await fetchProjectsForWorkspace(workspaceId)
-                : await fetchProjects();
-            const proj = projects.find(p => p.id === projectId);
-            if (proj) {
-                label += (label ? ' / ' : '') + proj.name;
-            } else {
-                label += (label ? ' / ' : '') + projectId;
-            }
-        } catch (e) {
-            label += (label ? ' / ' : '') + projectId;
-        }
-    }
-    currentProjectDisplay.textContent = label || 'No project selected';
-    currentProjectDisplay.style.display = 'block';
-}
+async function populateSharedDropdowns() {
+    if (!sharedWorkspace || !sharedProject) return;
 
-async function populateSavePageDropdowns() {
-    if (!savePageWorkspace || !savePageProject) return;
-
-    const stored = await chrome.storage.local.get(['SELECTED_WORKSPACE_ID']);
+    const stored = await chrome.storage.local.get(['SELECTED_WORKSPACE_ID', 'SELECTED_PROJECT_ID']);
     const workspaces = await fetchWorkspaces();
 
-    savePageWorkspace.innerHTML = '<option value="">Select workspace...</option>';
+    sharedWorkspace.innerHTML = '<option value="">Select workspace...</option>';
     workspaces.forEach(ws => {
         const option = document.createElement('option');
         option.value = ws.id;
         option.textContent = ws.name;
-        savePageWorkspace.appendChild(option);
+        sharedWorkspace.appendChild(option);
     });
 
     // Pre-select stored workspace or auto-select if only one
     if (stored.SELECTED_WORKSPACE_ID) {
-        savePageWorkspace.value = stored.SELECTED_WORKSPACE_ID;
+        sharedWorkspace.value = stored.SELECTED_WORKSPACE_ID;
     } else if (workspaces.length === 1) {
-        savePageWorkspace.value = workspaces[0].id;
+        sharedWorkspace.value = workspaces[0].id;
     }
 
     // Populate projects based on selected workspace
-    const wsId = savePageWorkspace.value;
+    const wsId = sharedWorkspace.value;
     if (wsId) {
-        const projects = await fetchProjectsForWorkspace(wsId);
-        savePageProject.innerHTML = '<option value="">Select project...</option>';
-        projects.forEach(project => {
-            const option = document.createElement('option');
-            option.value = project.id;
-            option.textContent = project.name;
-            savePageProject.appendChild(option);
-        });
+        await populateProjectsForSelect(sharedProject, wsId);
     } else {
         const projects = await fetchProjects();
-        savePageProject.innerHTML = '<option value="">Select project...</option>';
+        sharedProject.innerHTML = '<option value="">Select project...</option>';
         projects.forEach(project => {
             const option = document.createElement('option');
             option.value = project.id;
             option.textContent = project.name;
-            savePageProject.appendChild(option);
+            sharedProject.appendChild(option);
         });
+    }
+
+    // Pre-select stored project
+    if (stored.SELECTED_PROJECT_ID) {
+        sharedProject.value = stored.SELECTED_PROJECT_ID;
     }
 }
 
@@ -440,12 +408,8 @@ async function checkSetupState() {
 
             // Fully configured
             updateSettingsDisplay(result.AUTH_METHOD, result.TRANSCRIPTION_API_KEY);
-            if (hasProjects && result.SELECTED_PROJECT_ID) {
-                updateProjectDisplayLabel(result.SELECTED_WORKSPACE_ID, result.SELECTED_PROJECT_ID);
-                changeProjectBtn.style.display = '';
-            } else {
-                currentProjectDisplay.style.display = 'none';
-                changeProjectBtn.style.display = 'none';
+            if (hasProjects && sharedProjectSelector) {
+                sharedProjectSelector.classList.add('visible');
             }
 
             showDictation();
@@ -531,34 +495,6 @@ clearApiKeyBtn.onclick = () => {
     }
 };
 
-changeProjectBtn.onclick = async () => {
-    const isOpen = !changeProjectSection.classList.contains('hidden');
-    if (isOpen) {
-        changeProjectSection.classList.add('hidden');
-        return;
-    }
-    const stored = await chrome.storage.local.get(['SELECTED_WORKSPACE_ID']);
-    await populateWorkspaceAndProjectDropdowns(
-        changeWorkspaceDropdown, changeProjectDropdown,
-        stored.SELECTED_WORKSPACE_ID || null
-    );
-    changeProjectSection.classList.remove('hidden');
-};
-
-changeProjectDropdown.onchange = async () => {
-    const selectedId = changeProjectDropdown.value;
-    if (!selectedId) return;
-    if (isListening) stopListening();
-    const workspaceId = changeWorkspaceDropdown ? changeWorkspaceDropdown.value : '';
-    const storageUpdate = { 'SELECTED_PROJECT_ID': selectedId };
-    if (workspaceId) storageUpdate['SELECTED_WORKSPACE_ID'] = workspaceId;
-    chrome.storage.local.set(storageUpdate, async () => {
-        changeProjectSection.classList.add('hidden');
-        settingsDropdown.classList.add('hidden');
-        await checkSetupState();
-    });
-};
-
 // Setup flow: workspace change cascades to project dropdown
 if (setupWorkspaceDropdown) {
     setupWorkspaceDropdown.addEventListener('change', async () => {
@@ -566,10 +502,25 @@ if (setupWorkspaceDropdown) {
     });
 }
 
-// Settings: workspace change cascades to project dropdown
-if (changeWorkspaceDropdown) {
-    changeWorkspaceDropdown.addEventListener('change', async () => {
-        await populateProjectsForSelect(changeProjectDropdown, changeWorkspaceDropdown.value);
+// Shared workspace change: re-populate projects and persist to storage
+if (sharedWorkspace) {
+    sharedWorkspace.addEventListener('change', async () => {
+        const workspaceId = sharedWorkspace.value;
+        if (workspaceId) {
+            chrome.storage.local.set({ SELECTED_WORKSPACE_ID: workspaceId });
+        }
+        await populateProjectsForSelect(sharedProject, workspaceId);
+    });
+}
+
+// Shared project change: persist to storage
+if (sharedProject) {
+    sharedProject.addEventListener('change', () => {
+        const projectId = sharedProject.value;
+        if (projectId) {
+            if (isListening) stopListening();
+            chrome.storage.local.set({ SELECTED_PROJECT_ID: projectId });
+        }
     });
 }
 
@@ -583,7 +534,7 @@ async function initEngines() {
 
 async function startServerSession() {
     const headers = await buildAuthHeaders();
-    const projectId = await getProjectId();
+    const projectId = (sharedProject && sharedProject.value) || await getProjectId();
 
     const response = await fetch(`${apiBaseURL}/api/trpc/transcription.startSession`, {
         method: 'POST',
@@ -1081,26 +1032,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Save Page dropdowns: workspace change re-populates projects
-    if (savePageWorkspace) {
-        savePageWorkspace.addEventListener('change', async () => {
-            const workspaceId = savePageWorkspace.value;
-            if (savePageProject) {
-                savePageProject.innerHTML = '<option value="">Loading projects...</option>';
-                const projects = workspaceId
-                    ? await fetchProjectsForWorkspace(workspaceId)
-                    : await fetchProjects();
-                savePageProject.innerHTML = '<option value="">Select project...</option>';
-                projects.forEach(project => {
-                    const option = document.createElement('option');
-                    option.value = project.id;
-                    option.textContent = project.name;
-                    savePageProject.appendChild(option);
-                });
-            }
-        });
-    }
-
     // Save Page button
     if (savePageBtn) {
         savePageBtn.addEventListener('click', async () => {
@@ -1120,9 +1051,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             savePageBtn.textContent = 'Saving...';
             try {
                 const headers = await buildAuthHeaders();
-                // Dropdown overrides settings-level project
-                const dropdownProjectId = savePageProject ? savePageProject.value : '';
-                const projectId = dropdownProjectId || await getProjectId();
+                const projectId = (sharedProject && sharedProject.value) || await getProjectId();
                 const context = savePageContext ? savePageContext.value : '';
                 const name = formatActionName(tab.url, tab.title, context);
                 const body = {
@@ -1174,6 +1103,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isConfigured = await checkSetupState();
     if (isConfigured) {
         await initEngines();
-        if (hasSavePage) populateSavePageDropdowns();
+        if (hasProjects) populateSharedDropdowns();
     }
 });
