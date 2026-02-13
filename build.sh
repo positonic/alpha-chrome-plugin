@@ -47,6 +47,8 @@ const EXTENSION_CONFIG = {
     apiBaseURL: "http://localhost:3000",
     hasProjects: true,
     hasSavePage: true,
+    cookieDomain: "http://localhost:3000",
+    sessionCookieNames: ["authjs.session-token"],
     projects: [] // Will be loaded dynamically from API
 };
 EOF
@@ -81,6 +83,8 @@ const EXTENSION_CONFIG = {
     apiBaseURL: "https://www.exponential.im",
     hasProjects: true,
     hasSavePage: true,
+    cookieDomain: "https://www.exponential.im",
+    sessionCookieNames: ["__Secure-authjs.session-token", "authjs.session-token"],
     projects: [] // Will be loaded dynamically from API
 };
 EOF

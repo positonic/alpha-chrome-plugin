@@ -19,7 +19,21 @@ const SCREENSHOT_COOLDOWN = 2000; // 2 seconds cooldown
 let consecutiveNetworkErrors = 0;
 const MAX_NETWORK_ERRORS = 3; // Stop retrying after this many consecutive network errors
 
-// Add this near the top with other utility functions
+// Auth helpers
+async function buildAuthHeaders() {
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get(['AUTH_JWT', 'TRANSCRIPTION_API_KEY'], (result) => {
+            if (result.AUTH_JWT) {
+                resolve({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${result.AUTH_JWT}` });
+            } else if (result.TRANSCRIPTION_API_KEY) {
+                resolve({ 'Content-Type': 'application/json', 'x-api-key': result.TRANSCRIPTION_API_KEY });
+            } else {
+                reject(new Error('Not authenticated'));
+            }
+        });
+    });
+}
+
 async function getApiKey() {
     return new Promise((resolve) => {
         chrome.storage.local.get(['TRANSCRIPTION_API_KEY'], function(result) {
@@ -209,31 +223,28 @@ async function startListening() {
     console.log('startListening: Starting listening');
     consecutiveNetworkErrors = 0; // Reset error counter on new start attempt
     try {
-        // Get API key and project ID first
-        const apiKey = await getApiKey();
+        // Get auth headers and project ID first
+        const headers = await buildAuthHeaders();
         const projectId = await getProjectId();
-        
+
         // Clear the output display immediately and hide session link
         output.textContent = '';
         sessionUrl.style.display = 'none';
 
         console.log('url is: ', `${apiBaseURL}/api/trpc/transcription.startSession`)
         console.log('startListening: Project ID being sent:', projectId);
-        
+
         const requestBody = {
             json: {
                 projectId: projectId
             }
         };
         console.log('startListening: Request body:', JSON.stringify(requestBody));
-        
-        // Start a new session first with API key in header and project ID in body
+
+        // Start a new session first with auth headers and project ID in body
         const response = await fetch(`${apiBaseURL}/api/trpc/transcription.startSession`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey
-            },
+            headers,
             body: JSON.stringify(requestBody)
         });
         const data = await response.json();
@@ -277,14 +288,11 @@ async function startListening() {
 async function saveTranscription(id, transcriptionText) {
     console.log('Saving transcription:', id, transcriptionText);
     try {
-        const apiKey = await getApiKey();
-        
+        const headers = await buildAuthHeaders();
+
         const response = await fetch(`${apiBaseURL}/api/trpc/transcription.saveTranscription`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey
-            },
+            headers,
             body: JSON.stringify({
                 json: {
                     id,
@@ -368,17 +376,14 @@ async function takeScreenshot() {
 async function saveScreenshot(dataUrl) {
     console.log('Saving screenshot');
     try {
-        const apiKey = await getApiKey();
-        
+        const headers = await buildAuthHeaders();
+
         // Convert base64 data URL to binary data
         const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
-        
+
         const response = await fetch(`${apiBaseURL}/api/trpc/transcription.saveScreenshot`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey
-            },
+            headers,
             body: JSON.stringify({
                 json: {
                     sessionId: currentSessionId,
