@@ -1,12 +1,9 @@
-// Side panel main script — engine-agnostic dictation UI
-// Adapted from dictation.js, works with both Whisper and Google engines
+// Side panel main script — Whisper dictation UI
 
 const toggleButton = document.getElementById('toggleDictation');
 const output = document.getElementById('output');
 const statusEl = document.getElementById('status');
 const sessionUrl = document.getElementById('session-url');
-const engineWhisperBtn = document.getElementById('engineWhisper');
-const engineGoogleBtn = document.getElementById('engineGoogle');
 const modelStatusEl = document.getElementById('modelStatus');
 const modelStatusText = document.getElementById('modelStatusText');
 const modelProgressBar = document.getElementById('modelProgressBar');
@@ -54,10 +51,7 @@ const hasSavePage = EXTENSION_CONFIG.hasSavePage || false;
 const cookieDomain = EXTENSION_CONFIG.cookieDomain || null;
 const sessionCookieNames = EXTENSION_CONFIG.sessionCookieNames || null;
 
-let currentEngine = null; // 'whisper' or 'google'
-let engine = null; // The active speech engine instance
-let whisperEngine = null; // Cached Whisper engine (persists model across toggles)
-let googleEngine = null; // Cached Google engine
+let engine = null; // The Whisper speech engine instance
 
 let isListening = false;
 let currentSessionId = null;
@@ -454,7 +448,7 @@ saveApiKeyBtn.onclick = async () => {
         chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey, 'AUTH_METHOD': 'manual' }, async () => {
             apiKeyStatusEl.textContent = '';
             const ready = await checkSetupState();
-            if (ready) await initEngines();
+            if (ready) await initEngine();
         });
     }
 };
@@ -468,7 +462,7 @@ projectDropdown.onchange = () => {
         chrome.storage.local.set(storageUpdate, async () => {
             projectStatusEl.textContent = '';
             const ready = await checkSetupState();
-            if (ready) await initEngines();
+            if (ready) await initEngine();
         });
     }
 };
@@ -524,10 +518,22 @@ if (sharedProject) {
     });
 }
 
-async function initEngines() {
-    const result = await chrome.storage.local.get('SPEECH_ENGINE');
-    const savedEngine = result.SPEECH_ENGINE || 'whisper';
-    await switchEngine(savedEngine);
+async function initEngine() {
+    if (!engine) {
+        engine = new WhisperSpeechEngine();
+        engine.init();
+    }
+    wireEngine(engine);
+
+    // Show model progress if not ready yet
+    const modelStatus = engine.getModelStatus();
+    if (!modelStatus.ready) {
+        modelStatusEl.classList.add('visible');
+        toggleButton.disabled = true;
+    } else {
+        modelStatusEl.classList.remove('visible');
+        toggleButton.disabled = false;
+    }
 }
 
 // --- Server communication (unchanged from dictation.js) ---
@@ -792,34 +798,10 @@ if (clearBtn) clearBtn.addEventListener('click', clearAnnotations);
 
 // --- Engine management ---
 
-function createEngine(type) {
-    if (type === 'whisper') {
-        if (!whisperEngine) {
-            whisperEngine = new WhisperSpeechEngine();
-            whisperEngine.init();
-        }
-        return whisperEngine;
-    } else {
-        if (!googleEngine) {
-            googleEngine = new GoogleSpeechEngine();
-            googleEngine.init();
-        }
-        return googleEngine;
-    }
-}
-
 function wireEngine(eng) {
-    // Called when new transcript text arrives from either engine.
-    // For Google, this is the full accumulated transcript per recognition session.
-    // For Whisper, each chunk is an independent 5-second transcription.
+    // Whisper returns independent 5-second chunks — append each one.
     eng.onresult = (text) => {
-        if (currentEngine === 'whisper') {
-            // Whisper returns independent chunks — append
-            currentTranscription += (currentTranscription ? ' ' : '') + text;
-        } else {
-            // Google returns full transcript per recognition session
-            currentTranscription = text;
-        }
+        currentTranscription += (currentTranscription ? ' ' : '') + text;
         output.textContent = currentTranscription;
 
         // Check only the NEW text for screenshot command (not full transcript,
@@ -865,59 +847,23 @@ function wireEngine(eng) {
         }
     };
 
-    // Whisper-specific: model progress
-    if (eng.onmodelprogress !== undefined) {
-        eng.onmodelprogress = (info) => {
-            if (info.ready) {
-                modelStatusEl.classList.remove('visible');
-                toggleButton.disabled = false;
-            } else {
-                modelStatusEl.classList.add('visible');
-                modelProgressBar.style.width = info.progress + '%';
-                const detail = info.detail;
-                if (detail && detail.file) {
-                    modelStatusText.textContent = `Downloading ${detail.file}... ${info.progress}%`;
-                } else if (detail && detail.status === 'loading') {
-                    modelStatusText.textContent = detail.message || 'Loading model...';
-                } else {
-                    modelStatusText.textContent = `Loading model... ${info.progress}%`;
-                }
-            }
-        };
-    }
-}
-
-async function switchEngine(type) {
-    // Stop current recording if active
-    if (isListening) {
-        await stopListening();
-    }
-
-    currentEngine = type;
-    engine = createEngine(type);
-    wireEngine(engine);
-
-    // Update toggle UI
-    engineWhisperBtn.classList.toggle('active', type === 'whisper');
-    engineGoogleBtn.classList.toggle('active', type === 'google');
-
-    // Show/hide model status for Whisper
-    if (type === 'whisper') {
-        const modelStatus = engine.getModelStatus();
-        if (!modelStatus.ready) {
-            modelStatusEl.classList.add('visible');
-            toggleButton.disabled = true;
-        } else {
+    eng.onmodelprogress = (info) => {
+        if (info.ready) {
             modelStatusEl.classList.remove('visible');
             toggleButton.disabled = false;
+        } else {
+            modelStatusEl.classList.add('visible');
+            modelProgressBar.style.width = info.progress + '%';
+            const detail = info.detail;
+            if (detail && detail.file) {
+                modelStatusText.textContent = `Downloading ${detail.file}... ${info.progress}%`;
+            } else if (detail && detail.status === 'loading') {
+                modelStatusText.textContent = detail.message || 'Loading model...';
+            } else {
+                modelStatusText.textContent = `Loading model... ${info.progress}%`;
+            }
         }
-    } else {
-        modelStatusEl.classList.remove('visible');
-        toggleButton.disabled = false;
-    }
-
-    // Save preference
-    chrome.storage.local.set({ SPEECH_ENGINE: type });
+    };
 }
 
 // --- Start/Stop ---
@@ -988,9 +934,6 @@ toggleButton.onclick = () => {
         stopListening();
     }
 };
-
-engineWhisperBtn.onclick = () => switchEngine('whisper');
-engineGoogleBtn.onclick = () => switchEngine('google');
 
 // --- Initialize ---
 
@@ -1099,10 +1042,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Check setup state — only initialize engines if fully configured
+    // Check setup state — only initialize engine if fully configured
     const isConfigured = await checkSetupState();
     if (isConfigured) {
-        await initEngines();
+        await initEngine();
         if (hasProjects) populateSharedDropdowns();
     }
 });

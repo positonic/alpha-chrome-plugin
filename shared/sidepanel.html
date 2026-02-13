@@ -81,38 +81,6 @@
         font-weight: 600;
       }
 
-      /* Engine toggle */
-      .engine-toggle {
-        display: flex;
-        gap: 0;
-        margin-bottom: 12px;
-        border-radius: 8px;
-        overflow: hidden;
-        border: 2px solid #e5e7eb;
-        background: white;
-      }
-      .engine-toggle button {
-        flex: 1;
-        margin: 0;
-        padding: 10px 12px;
-        border-radius: 0;
-        font-size: 12px;
-        font-weight: 600;
-        background: white;
-        color: #6b7280;
-        box-shadow: none;
-        border: none;
-        transition: all 0.15s ease;
-      }
-      .engine-toggle button:hover {
-        transform: none;
-        background: #f3f4f6;
-      }
-      .engine-toggle button.active {
-        background: #2D68E5;
-        color: white;
-      }
-
       /* Panel tabs (Save Page / Recording) */
       .panel-tabs {
         display: none;
@@ -528,13 +496,7 @@
     <!-- Tab 2: Recording (contains all existing dictation UI) -->
     <div class="tab-panel" id="panelRecording">
 
-    <!-- Engine toggle -->
-    <div class="engine-toggle">
-      <button id="engineWhisper" class="active">Local (Whisper)</button>
-      <button id="engineGoogle">Google</button>
-    </div>
-
-    <!-- Model download progress (Whisper only) -->
+    <!-- Model download progress -->
     <div class="model-status" id="modelStatus">
       <span class="model-status-text" id="modelStatusText">Loading model...</span>
       <div class="progress-bar-bg">
@@ -567,7 +529,6 @@
     </div><!-- end #dictationUI -->
 
     <script src="config.js"></script>
-    <script src="speech-engine-google.js"></script>
     <script src="speech-engine-whisper.js"></script>
     <script src="sidepanel.js"></script>
   </body>

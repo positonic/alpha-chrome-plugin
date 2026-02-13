@@ -50,11 +50,8 @@
     "web_accessible_resources": [{
         "resources": [
           "annotation-overlay.js",
-          "dictation.html",
-          "dictation.js",
           "sidepanel.html",
           "sidepanel.js",
-          "speech-engine-google.js",
           "speech-engine-whisper.js",
           "whisper-worker.bundle.js",
           "audio-processor.js",
