@@ -33,6 +33,8 @@ const currentProjectDisplay = document.getElementById('currentProjectDisplay');
 const changeProjectBtn = document.getElementById('changeProjectBtn');
 const changeProjectSection = document.getElementById('changeProjectSection');
 const changeProjectDropdown = document.getElementById('changeProjectDropdown');
+const setupWorkspaceDropdown = document.getElementById('setupWorkspaceDropdown');
+const changeWorkspaceDropdown = document.getElementById('changeWorkspaceDropdown');
 
 // Tab elements
 const panelTabs = document.getElementById('panelTabs');
@@ -217,20 +219,120 @@ async function fetchProjectsForWorkspace(workspaceId) {
     }
 }
 
-async function populateSavePageDropdowns() {
-    // Populate workspaces
-    if (savePageWorkspace) {
-        const workspaces = await fetchWorkspaces();
-        savePageWorkspace.innerHTML = '<option value="">Select workspace...</option>';
-        workspaces.forEach(ws => {
+async function populateProjectsForSelect(projSelect, workspaceId, explicitApiKey) {
+    projSelect.innerHTML = '<option value="">Loading projects...</option>';
+    const projects = workspaceId
+        ? await fetchProjectsForWorkspace(workspaceId)
+        : (explicitApiKey ? await fetchProjects(explicitApiKey) : await fetchProjects());
+    projSelect.innerHTML = '<option value="">Select a project...</option>';
+    projects.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.id;
+        option.textContent = project.name;
+        projSelect.appendChild(option);
+    });
+}
+
+async function populateWorkspaceAndProjectDropdowns(wsSelect, projSelect, preselectWsId, explicitApiKey) {
+    const workspaces = await fetchWorkspaces();
+
+    wsSelect.innerHTML = '<option value="">Select a workspace...</option>';
+    workspaces.forEach(ws => {
+        const option = document.createElement('option');
+        option.value = ws.id;
+        option.textContent = ws.name;
+        wsSelect.appendChild(option);
+    });
+
+    // Auto-select if only one workspace, or pre-select stored
+    if (workspaces.length === 1) {
+        wsSelect.value = workspaces[0].id;
+    } else if (preselectWsId) {
+        wsSelect.value = preselectWsId;
+    }
+
+    // Populate projects based on selected workspace
+    const selectedWsId = wsSelect.value;
+    if (selectedWsId) {
+        await populateProjectsForSelect(projSelect, selectedWsId, explicitApiKey);
+    } else {
+        const projects = explicitApiKey ? await fetchProjects(explicitApiKey) : await fetchProjects();
+        projSelect.innerHTML = '<option value="">Select a project...</option>';
+        projects.forEach(project => {
             const option = document.createElement('option');
-            option.value = ws.id;
-            option.textContent = ws.name;
-            savePageWorkspace.appendChild(option);
+            option.value = project.id;
+            option.textContent = project.name;
+            projSelect.appendChild(option);
         });
     }
-    // Populate projects (all projects initially)
-    if (savePageProject) {
+
+    // Hide workspace dropdown if no workspaces (backwards compat)
+    wsSelect.style.display = workspaces.length === 0 ? 'none' : '';
+
+    return workspaces;
+}
+
+async function updateProjectDisplayLabel(workspaceId, projectId) {
+    let label = '';
+    if (workspaceId) {
+        try {
+            const workspaces = await fetchWorkspaces();
+            const ws = workspaces.find(w => w.id === workspaceId);
+            if (ws) label += ws.name;
+        } catch (e) { /* ignore */ }
+    }
+    if (projectId) {
+        try {
+            const projects = workspaceId
+                ? await fetchProjectsForWorkspace(workspaceId)
+                : await fetchProjects();
+            const proj = projects.find(p => p.id === projectId);
+            if (proj) {
+                label += (label ? ' / ' : '') + proj.name;
+            } else {
+                label += (label ? ' / ' : '') + projectId;
+            }
+        } catch (e) {
+            label += (label ? ' / ' : '') + projectId;
+        }
+    }
+    currentProjectDisplay.textContent = label || 'No project selected';
+    currentProjectDisplay.style.display = 'block';
+}
+
+async function populateSavePageDropdowns() {
+    if (!savePageWorkspace || !savePageProject) return;
+
+    const stored = await chrome.storage.local.get(['SELECTED_WORKSPACE_ID']);
+    const workspaces = await fetchWorkspaces();
+
+    savePageWorkspace.innerHTML = '<option value="">Select workspace...</option>';
+    workspaces.forEach(ws => {
+        const option = document.createElement('option');
+        option.value = ws.id;
+        option.textContent = ws.name;
+        savePageWorkspace.appendChild(option);
+    });
+
+    // Pre-select stored workspace or auto-select if only one
+    if (stored.SELECTED_WORKSPACE_ID) {
+        savePageWorkspace.value = stored.SELECTED_WORKSPACE_ID;
+    } else if (workspaces.length === 1) {
+        savePageWorkspace.value = workspaces[0].id;
+    }
+
+    // Populate projects based on selected workspace
+    const wsId = savePageWorkspace.value;
+    if (wsId) {
+        const projects = await fetchProjectsForWorkspace(wsId);
+        savePageProject.innerHTML = '<option value="">Select project...</option>';
+        projects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = project.name;
+            savePageProject.appendChild(option);
+        });
+    } else {
         const projects = await fetchProjects();
         savePageProject.innerHTML = '<option value="">Select project...</option>';
         projects.forEach(project => {
@@ -265,16 +367,6 @@ async function fetchProjects(explicitApiKey) {
     }
 }
 
-function populateProjectDropdown(projects) {
-    projectDropdown.innerHTML = '<option value="">Select a project...</option>';
-    projects.forEach(project => {
-        const option = document.createElement('option');
-        option.value = project.id;
-        option.textContent = project.name;
-        projectDropdown.appendChild(option);
-    });
-}
-
 function showSetup() {
     setupSection.classList.remove('hidden');
     dictationUI.classList.add('hidden');
@@ -292,7 +384,10 @@ function showDictation() {
 async function checkSetupState() {
     return new Promise((resolve) => {
         const keys = ['TRANSCRIPTION_API_KEY', 'AUTH_JWT', 'AUTH_METHOD'];
-        if (hasProjects) keys.push('SELECTED_PROJECT_ID');
+        if (hasProjects) {
+            keys.push('SELECTED_PROJECT_ID');
+            keys.push('SELECTED_WORKSPACE_ID');
+        }
 
         chrome.storage.local.get(keys, async (result) => {
             const hasAuth = !!(result.AUTH_JWT || result.TRANSCRIPTION_API_KEY);
@@ -318,8 +413,7 @@ async function checkSetupState() {
                 // Auto-auth succeeded — need project selection?
                 if (hasProjects) {
                     projectCard.classList.remove('hidden');
-                    const projects = await fetchProjects();
-                    populateProjectDropdown(projects);
+                    await populateWorkspaceAndProjectDropdowns(setupWorkspaceDropdown, projectDropdown);
                     resolve(false);
                     return;
                 }
@@ -335,10 +429,10 @@ async function checkSetupState() {
             if (hasProjects && !result.SELECTED_PROJECT_ID) {
                 apiKeyCard.classList.add('hidden');
                 projectCard.classList.remove('hidden');
-                const projects = result.TRANSCRIPTION_API_KEY
-                    ? await fetchProjects(result.TRANSCRIPTION_API_KEY)
-                    : await fetchProjects();
-                populateProjectDropdown(projects);
+                await populateWorkspaceAndProjectDropdowns(
+                    setupWorkspaceDropdown, projectDropdown, null,
+                    result.TRANSCRIPTION_API_KEY || null
+                );
                 showSetup();
                 resolve(false);
                 return;
@@ -347,8 +441,7 @@ async function checkSetupState() {
             // Fully configured
             updateSettingsDisplay(result.AUTH_METHOD, result.TRANSCRIPTION_API_KEY);
             if (hasProjects && result.SELECTED_PROJECT_ID) {
-                currentProjectDisplay.textContent = 'Project: ' + result.SELECTED_PROJECT_ID;
-                currentProjectDisplay.style.display = 'block';
+                updateProjectDisplayLabel(result.SELECTED_WORKSPACE_ID, result.SELECTED_PROJECT_ID);
                 changeProjectBtn.style.display = '';
             } else {
                 currentProjectDisplay.style.display = 'none';
@@ -387,9 +480,9 @@ saveApiKeyBtn.onclick = async () => {
             apiKeyStatusEl.classList.add('error');
             return;
         }
-        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey, 'AUTH_METHOD': 'manual' }, () => {
+        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey, 'AUTH_METHOD': 'manual' }, async () => {
             apiKeyStatusEl.textContent = '';
-            populateProjectDropdown(projects);
+            await populateWorkspaceAndProjectDropdowns(setupWorkspaceDropdown, projectDropdown, null, apiKey);
             apiKeyCard.classList.add('hidden');
             projectCard.classList.remove('hidden');
         });
@@ -405,7 +498,10 @@ saveApiKeyBtn.onclick = async () => {
 projectDropdown.onchange = () => {
     const selectedId = projectDropdown.value;
     if (selectedId) {
-        chrome.storage.local.set({ 'SELECTED_PROJECT_ID': selectedId }, async () => {
+        const workspaceId = setupWorkspaceDropdown ? setupWorkspaceDropdown.value : '';
+        const storageUpdate = { 'SELECTED_PROJECT_ID': selectedId };
+        if (workspaceId) storageUpdate['SELECTED_WORKSPACE_ID'] = workspaceId;
+        chrome.storage.local.set(storageUpdate, async () => {
             projectStatusEl.textContent = '';
             const ready = await checkSetupState();
             if (ready) await initEngines();
@@ -421,7 +517,10 @@ clearApiKeyBtn.onclick = () => {
     if (confirm('Are you sure you want to disconnect?')) {
         if (isListening) stopListening();
         const keysToRemove = ['TRANSCRIPTION_API_KEY', 'AUTH_JWT', 'AUTH_JWT_EXPIRES', 'AUTH_METHOD'];
-        if (hasProjects) keysToRemove.push('SELECTED_PROJECT_ID');
+        if (hasProjects) {
+            keysToRemove.push('SELECTED_PROJECT_ID');
+            keysToRemove.push('SELECTED_WORKSPACE_ID');
+        }
         chrome.storage.local.remove(keysToRemove, () => {
             apiKeyInput.value = '';
             projectDropdown.innerHTML = '<option value="">Select a project...</option>';
@@ -438,14 +537,11 @@ changeProjectBtn.onclick = async () => {
         changeProjectSection.classList.add('hidden');
         return;
     }
-    const projects = await fetchProjects();
-    changeProjectDropdown.innerHTML = '<option value="">Select a project...</option>';
-    projects.forEach(project => {
-        const option = document.createElement('option');
-        option.value = project.id;
-        option.textContent = project.name;
-        changeProjectDropdown.appendChild(option);
-    });
+    const stored = await chrome.storage.local.get(['SELECTED_WORKSPACE_ID']);
+    await populateWorkspaceAndProjectDropdowns(
+        changeWorkspaceDropdown, changeProjectDropdown,
+        stored.SELECTED_WORKSPACE_ID || null
+    );
     changeProjectSection.classList.remove('hidden');
 };
 
@@ -453,12 +549,29 @@ changeProjectDropdown.onchange = async () => {
     const selectedId = changeProjectDropdown.value;
     if (!selectedId) return;
     if (isListening) stopListening();
-    chrome.storage.local.set({ 'SELECTED_PROJECT_ID': selectedId }, async () => {
+    const workspaceId = changeWorkspaceDropdown ? changeWorkspaceDropdown.value : '';
+    const storageUpdate = { 'SELECTED_PROJECT_ID': selectedId };
+    if (workspaceId) storageUpdate['SELECTED_WORKSPACE_ID'] = workspaceId;
+    chrome.storage.local.set(storageUpdate, async () => {
         changeProjectSection.classList.add('hidden');
         settingsDropdown.classList.add('hidden');
         await checkSetupState();
     });
 };
+
+// Setup flow: workspace change cascades to project dropdown
+if (setupWorkspaceDropdown) {
+    setupWorkspaceDropdown.addEventListener('change', async () => {
+        await populateProjectsForSelect(projectDropdown, setupWorkspaceDropdown.value);
+    });
+}
+
+// Settings: workspace change cascades to project dropdown
+if (changeWorkspaceDropdown) {
+    changeWorkspaceDropdown.addEventListener('change', async () => {
+        await populateProjectsForSelect(changeProjectDropdown, changeWorkspaceDropdown.value);
+    });
+}
 
 async function initEngines() {
     const result = await chrome.storage.local.get('SPEECH_ENGINE');
