@@ -220,19 +220,25 @@
         align-items: center;
       }
       .btn-draw {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        background: white;
+        color: #374151;
+        border: 2px solid #e5e7eb;
+        box-shadow: none;
         flex-shrink: 0;
         width: auto;
         padding: 10px 16px;
         margin-bottom: 0;
       }
       .btn-draw:hover {
-        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        background: #f3f4f6;
+        border-color: #d1d5db;
+        transform: none;
       }
       .btn-draw.active {
-        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-        box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+        background: #2D68E5;
+        color: white;
+        border-color: #2D68E5;
+        box-shadow: 0 4px 12px rgba(45, 104, 229, 0.3);
       }
       .tool-toggle {
         display: none;
@@ -263,7 +269,7 @@
         background: #f3f4f6;
       }
       .tool-toggle button.active {
-        background: #ef4444;
+        background: #2D68E5;
         color: white;
       }
       .btn-clear {
