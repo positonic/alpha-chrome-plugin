@@ -157,6 +157,23 @@
       }
 
       /* Save page */
+      .save-page-select {
+        width: 100%;
+        padding: 10px 14px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 13px;
+        background: white;
+        transition: border-color 0.2s ease;
+        box-sizing: border-box;
+        margin-bottom: 8px;
+        color: #374151;
+      }
+      .save-page-select:focus {
+        outline: none;
+        border-color: #2D68E5;
+        box-shadow: 0 0 0 3px rgba(45, 104, 229, 0.1);
+      }
       .save-page-input {
         width: 100%;
         padding: 10px 14px;
@@ -450,12 +467,15 @@
       </div>
       <div style="display: flex; gap: 8px;">
         <button class="btn-danger" id="changeProjectBtn" style="display:none;">Change Project</button>
-        <button class="btn-danger" id="clearApiKeyBtn">Clear API Key</button>
+        <button class="btn-danger" id="clearApiKeyBtn">Disconnect</button>
       </div>
     </div>
 
     <!-- Setup section (visible until configured) -->
     <div id="setupSection">
+      <div class="setup-card hidden" id="autoAuthCard" style="text-align:center;">
+        <p style="margin:0;font-size:14px;color:#6b7280;">Connecting to your account...</p>
+      </div>
       <div class="setup-card" id="apiKeyCard">
         <h2>API Key Required</h2>
         <a href="https://exponential.im/settings/api-keys" target="_blank" style="display:inline-block;margin-bottom:10px;font-size:13px;color:#2D68E5;font-weight:500;">Get your API key</a>
@@ -483,6 +503,12 @@
 
     <!-- Tab 1: Save Page -->
     <div class="tab-panel active" id="panelSavePage">
+      <select class="save-page-select" id="savePageWorkspace">
+        <option value="">Select workspace...</option>
+      </select>
+      <select class="save-page-select" id="savePageProject">
+        <option value="">Select project...</option>
+      </select>
       <input type="text" class="save-page-input" id="savePageContext" placeholder="Add context (optional)...">
       <button class="btn-save-page" id="savePageBtn">Save Page</button>
       <div class="save-page-status" id="savePageStatus"></div>

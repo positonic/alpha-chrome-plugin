@@ -43,10 +43,16 @@ const panelRecording = document.getElementById('panelRecording');
 const savePageBtn = document.getElementById('savePageBtn');
 const savePageContext = document.getElementById('savePageContext');
 const savePageStatus = document.getElementById('savePageStatus');
+const savePageWorkspace = document.getElementById('savePageWorkspace');
+const savePageProject = document.getElementById('savePageProject');
+
+const autoAuthCard = document.getElementById('autoAuthCard');
 
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
 const hasProjects = EXTENSION_CONFIG.hasProjects;
 const hasSavePage = EXTENSION_CONFIG.hasSavePage || false;
+const cookieDomain = EXTENSION_CONFIG.cookieDomain || null;
+const sessionCookieNames = EXTENSION_CONFIG.sessionCookieNames || null;
 
 let currentEngine = null; // 'whisper' or 'google'
 let engine = null; // The active speech engine instance
@@ -99,6 +105,64 @@ function getNow() {
     return `${month}/${day} ${hours}:${minutes}:${seconds}`;
 }
 
+// --- Auth helpers ---
+
+async function buildAuthHeaders() {
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get(['AUTH_JWT', 'TRANSCRIPTION_API_KEY'], (result) => {
+            if (result.AUTH_JWT) {
+                resolve({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${result.AUTH_JWT}` });
+            } else if (result.TRANSCRIPTION_API_KEY) {
+                resolve({ 'Content-Type': 'application/json', 'x-api-key': result.TRANSCRIPTION_API_KEY });
+            } else {
+                reject(new Error('Not authenticated'));
+            }
+        });
+    });
+}
+
+async function tryAutoAuth() {
+    if (!cookieDomain || !sessionCookieNames || typeof chrome.cookies === 'undefined') return false;
+
+    for (const name of sessionCookieNames) {
+        try {
+            const cookie = await chrome.cookies.get({ url: cookieDomain, name });
+            if (!cookie) continue;
+
+            const response = await fetch(`${apiBaseURL}/api/auth/extension-token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-session-token': cookie.value }
+            });
+            if (!response.ok) continue;
+
+            const data = await response.json();
+            if (data.jwt) {
+                await chrome.storage.local.set({
+                    AUTH_JWT: data.jwt,
+                    AUTH_JWT_EXPIRES: data.expiresAt || 0,
+                    AUTH_METHOD: 'auto'
+                });
+                return true;
+            }
+        } catch (e) {
+            console.error('Auto-auth failed for cookie', name, e);
+        }
+    }
+    return false;
+}
+
+async function refreshAuthIfNeeded() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['AUTH_METHOD', 'AUTH_JWT_EXPIRES'], async (result) => {
+            if (result.AUTH_METHOD !== 'auto') { resolve(false); return; }
+            const expires = result.AUTH_JWT_EXPIRES || 0;
+            // Refresh if expiring within 5 minutes
+            if (expires && Date.now() < expires - 5 * 60 * 1000) { resolve(false); return; }
+            resolve(await tryAutoAuth());
+        });
+    });
+}
+
 // --- Save Page helpers ---
 
 function escapeHtml(str) {
@@ -119,13 +183,78 @@ function formatActionName(url, title, context) {
     return link;
 }
 
+// TODO: Replace with real API call once backend endpoint exists.
+// See the spec comment below this function for what we need.
+async function fetchWorkspaces() {
+    try {
+        const headers = await buildAuthHeaders();
+        const response = await fetch(`${apiBaseURL}/api/trpc/workspace.getUserWorkspaces`, {
+            method: 'GET',
+            headers
+        });
+        if (!response.ok) throw new Error(`API returned ${response.status}`);
+        const data = await response.json();
+        return data.result.data.json.workspaces; // expected: [{id, name}, ...]
+    } catch (error) {
+        console.error('Error fetching workspaces:', error);
+        return [];
+    }
+}
+
+async function fetchProjectsForWorkspace(workspaceId) {
+    try {
+        const headers = await buildAuthHeaders();
+        const url = workspaceId
+            ? `${apiBaseURL}/api/trpc/project.getUserProjects?input=${encodeURIComponent(JSON.stringify({ json: { workspaceId } }))}`
+            : `${apiBaseURL}/api/trpc/project.getUserProjects`;
+        const response = await fetch(url, { method: 'GET', headers });
+        if (!response.ok) throw new Error(`API returned ${response.status}`);
+        const data = await response.json();
+        return data.result.data.json.projects;
+    } catch (error) {
+        console.error('Error fetching projects for workspace:', error);
+        return [];
+    }
+}
+
+async function populateSavePageDropdowns() {
+    // Populate workspaces
+    if (savePageWorkspace) {
+        const workspaces = await fetchWorkspaces();
+        savePageWorkspace.innerHTML = '<option value="">Select workspace...</option>';
+        workspaces.forEach(ws => {
+            const option = document.createElement('option');
+            option.value = ws.id;
+            option.textContent = ws.name;
+            savePageWorkspace.appendChild(option);
+        });
+    }
+    // Populate projects (all projects initially)
+    if (savePageProject) {
+        const projects = await fetchProjects();
+        savePageProject.innerHTML = '<option value="">Select project...</option>';
+        projects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = project.name;
+            savePageProject.appendChild(option);
+        });
+    }
+}
+
 // --- Setup / configuration ---
 
-async function fetchProjects(apiKey) {
+async function fetchProjects(explicitApiKey) {
     try {
+        let headers;
+        if (explicitApiKey) {
+            headers = { 'Content-Type': 'application/json', 'x-api-key': explicitApiKey };
+        } else {
+            headers = await buildAuthHeaders();
+        }
         const response = await fetch(`${apiBaseURL}/api/trpc/project.getUserProjects`, {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey }
+            headers
         });
         if (!response.ok) throw new Error(`API returned ${response.status}`);
         const data = await response.json();
@@ -162,22 +291,53 @@ function showDictation() {
 
 async function checkSetupState() {
     return new Promise((resolve) => {
-        const keys = ['TRANSCRIPTION_API_KEY'];
+        const keys = ['TRANSCRIPTION_API_KEY', 'AUTH_JWT', 'AUTH_METHOD'];
         if (hasProjects) keys.push('SELECTED_PROJECT_ID');
 
         chrome.storage.local.get(keys, async (result) => {
-            if (!result.TRANSCRIPTION_API_KEY) {
-                apiKeyCard.classList.remove('hidden');
+            const hasAuth = !!(result.AUTH_JWT || result.TRANSCRIPTION_API_KEY);
+
+            if (!hasAuth) {
+                // Try auto-auth via browser session cookie
+                if (autoAuthCard) autoAuthCard.classList.remove('hidden');
+                apiKeyCard.classList.add('hidden');
                 projectCard.classList.add('hidden');
                 showSetup();
-                resolve(false);
+
+                const autoAuthSuccess = await tryAutoAuth();
+
+                if (autoAuthCard) autoAuthCard.classList.add('hidden');
+
+                if (!autoAuthSuccess) {
+                    // Fall back to manual API key input
+                    apiKeyCard.classList.remove('hidden');
+                    resolve(false);
+                    return;
+                }
+
+                // Auto-auth succeeded — need project selection?
+                if (hasProjects) {
+                    projectCard.classList.remove('hidden');
+                    const projects = await fetchProjects();
+                    populateProjectDropdown(projects);
+                    resolve(false);
+                    return;
+                }
+
+                // No projects needed — fully configured
+                updateSettingsDisplay(result.AUTH_METHOD || 'auto', null);
+                showDictation();
+                resolve(true);
                 return;
             }
 
+            // Already have stored auth
             if (hasProjects && !result.SELECTED_PROJECT_ID) {
                 apiKeyCard.classList.add('hidden');
                 projectCard.classList.remove('hidden');
-                const projects = await fetchProjects(result.TRANSCRIPTION_API_KEY);
+                const projects = result.TRANSCRIPTION_API_KEY
+                    ? await fetchProjects(result.TRANSCRIPTION_API_KEY)
+                    : await fetchProjects();
                 populateProjectDropdown(projects);
                 showSetup();
                 resolve(false);
@@ -185,8 +345,7 @@ async function checkSetupState() {
             }
 
             // Fully configured
-            const key = result.TRANSCRIPTION_API_KEY;
-            currentKeyDisplay.textContent = 'API Key: ' + key.slice(0, 4) + '...' + key.slice(-4);
+            updateSettingsDisplay(result.AUTH_METHOD, result.TRANSCRIPTION_API_KEY);
             if (hasProjects && result.SELECTED_PROJECT_ID) {
                 currentProjectDisplay.textContent = 'Project: ' + result.SELECTED_PROJECT_ID;
                 currentProjectDisplay.style.display = 'block';
@@ -200,6 +359,14 @@ async function checkSetupState() {
             resolve(true);
         });
     });
+}
+
+function updateSettingsDisplay(authMethod, apiKey) {
+    if (authMethod === 'auto') {
+        currentKeyDisplay.textContent = 'Connected via browser session';
+    } else if (apiKey) {
+        currentKeyDisplay.textContent = 'API Key: ' + apiKey.slice(0, 4) + '...' + apiKey.slice(-4);
+    }
 }
 
 // Setup event handlers
@@ -220,14 +387,14 @@ saveApiKeyBtn.onclick = async () => {
             apiKeyStatusEl.classList.add('error');
             return;
         }
-        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey }, () => {
+        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey, 'AUTH_METHOD': 'manual' }, () => {
             apiKeyStatusEl.textContent = '';
             populateProjectDropdown(projects);
             apiKeyCard.classList.add('hidden');
             projectCard.classList.remove('hidden');
         });
     } else {
-        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey }, async () => {
+        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey, 'AUTH_METHOD': 'manual' }, async () => {
             apiKeyStatusEl.textContent = '';
             const ready = await checkSetupState();
             if (ready) await initEngines();
@@ -251,9 +418,9 @@ settingsBtn.onclick = () => {
 };
 
 clearApiKeyBtn.onclick = () => {
-    if (confirm('Are you sure you want to clear the API key?')) {
+    if (confirm('Are you sure you want to disconnect?')) {
         if (isListening) stopListening();
-        const keysToRemove = ['TRANSCRIPTION_API_KEY'];
+        const keysToRemove = ['TRANSCRIPTION_API_KEY', 'AUTH_JWT', 'AUTH_JWT_EXPIRES', 'AUTH_METHOD'];
         if (hasProjects) keysToRemove.push('SELECTED_PROJECT_ID');
         chrome.storage.local.remove(keysToRemove, () => {
             apiKeyInput.value = '';
@@ -271,8 +438,7 @@ changeProjectBtn.onclick = async () => {
         changeProjectSection.classList.add('hidden');
         return;
     }
-    const apiKey = await getApiKey();
-    const projects = await fetchProjects(apiKey);
+    const projects = await fetchProjects();
     changeProjectDropdown.innerHTML = '<option value="">Select a project...</option>';
     projects.forEach(project => {
         const option = document.createElement('option');
@@ -303,12 +469,12 @@ async function initEngines() {
 // --- Server communication (unchanged from dictation.js) ---
 
 async function startServerSession() {
-    const apiKey = await getApiKey();
+    const headers = await buildAuthHeaders();
     const projectId = await getProjectId();
 
     const response = await fetch(`${apiBaseURL}/api/trpc/transcription.startSession`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        headers,
         body: JSON.stringify({ json: { projectId } })
     });
 
@@ -329,10 +495,10 @@ async function startServerSession() {
 
 async function saveTranscription(id, transcriptionText) {
     try {
-        const apiKey = await getApiKey();
+        const headers = await buildAuthHeaders();
         const response = await fetch(`${apiBaseURL}/api/trpc/transcription.saveTranscription`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+            headers,
             body: JSON.stringify({ json: { id, transcription: transcriptionText } })
         });
         const data = await response.json();
@@ -349,11 +515,11 @@ async function saveTranscription(id, transcriptionText) {
 
 async function saveScreenshot(dataUrl) {
     try {
-        const apiKey = await getApiKey();
+        const headers = await buildAuthHeaders();
         const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
         const response = await fetch(`${apiBaseURL}/api/trpc/transcription.saveScreenshot`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+            headers,
             body: JSON.stringify({ json: { sessionId: currentSessionId, screenshot: base64Data, timestamp: getNow() } })
         });
         const data = await response.json();
@@ -802,6 +968,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // Save Page dropdowns: workspace change re-populates projects
+    if (savePageWorkspace) {
+        savePageWorkspace.addEventListener('change', async () => {
+            const workspaceId = savePageWorkspace.value;
+            if (savePageProject) {
+                savePageProject.innerHTML = '<option value="">Loading projects...</option>';
+                const projects = workspaceId
+                    ? await fetchProjectsForWorkspace(workspaceId)
+                    : await fetchProjects();
+                savePageProject.innerHTML = '<option value="">Select project...</option>';
+                projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    savePageProject.appendChild(option);
+                });
+            }
+        });
+    }
+
     // Save Page button
     if (savePageBtn) {
         savePageBtn.addEventListener('click', async () => {
@@ -820,8 +1006,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             savePageBtn.disabled = true;
             savePageBtn.textContent = 'Saving...';
             try {
-                const apiKey = await getApiKey();
-                const projectId = await getProjectId();
+                const headers = await buildAuthHeaders();
+                // Dropdown overrides settings-level project
+                const dropdownProjectId = savePageProject ? savePageProject.value : '';
+                const projectId = dropdownProjectId || await getProjectId();
                 const context = savePageContext ? savePageContext.value : '';
                 const name = formatActionName(tab.url, tab.title, context);
                 const body = {
@@ -837,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 const response = await fetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                    headers,
                     body: JSON.stringify(body)
                 });
                 if (response.ok) {
@@ -873,5 +1061,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isConfigured = await checkSetupState();
     if (isConfigured) {
         await initEngines();
+        if (hasSavePage) populateSavePageDropdowns();
     }
 });
