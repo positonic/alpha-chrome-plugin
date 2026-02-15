@@ -1392,10 +1392,14 @@ function closeActionsModal() {
 
 function showGenerateActionsButton() {
     if (!generateActionsBtn || !currentSessionId) return;
-    chrome.storage.local.get(['AUTH_JWT'], (result) => {
-        if (result.AUTH_JWT) {
-            generateActionsBtn.classList.remove('hidden');
+    chrome.storage.local.get(['AUTH_JWT'], async (result) => {
+        if (!result.AUTH_JWT) {
+            await refreshAuthIfNeeded();
+            const updated = await new Promise(r =>
+                chrome.storage.local.get(['AUTH_JWT'], r));
+            if (!updated.AUTH_JWT) return;
         }
+        generateActionsBtn.classList.remove('hidden');
     });
 }
 
@@ -1738,7 +1742,7 @@ function wireEngine(eng) {
     eng.onerror = (error) => {
         console.error('Engine error:', error);
         statusEl.textContent = error;
-        statusEl.className = '';
+        statusEl.parentElement.classList.remove('listening');
     };
 
     eng.onstatuschange = (status) => {
@@ -1747,7 +1751,7 @@ function wireEngine(eng) {
 
     eng.onstart = () => {
         statusEl.textContent = 'Recording...';
-        statusEl.className = 'listening';
+        statusEl.parentElement.classList.add('listening');
         toggleButton.textContent = 'Stop Recording';
         toggleButton.className = 'btn-recording';
         isListening = true;
@@ -1757,7 +1761,7 @@ function wireEngine(eng) {
         if (!isListening) {
             toggleButton.textContent = selectedRecordingId ? 'Continue Recording' : 'Start Recording';
             toggleButton.className = selectedRecordingId ? 'btn-continue' : 'btn-primary';
-            statusEl.className = '';
+            statusEl.parentElement.classList.remove('listening');
             if (currentSessionId) sessionUrl.style.display = 'inline';
             showGenerateActionsButton();
             if (selectedRecordingId && newRecordingBtn) newRecordingBtn.style.display = '';
@@ -1850,7 +1854,7 @@ async function stopListening() {
     }
 
     statusEl.textContent = 'Ready';
-    statusEl.className = '';
+    statusEl.parentElement.classList.remove('listening');
     toggleButton.textContent = selectedRecordingId ? 'Continue Recording' : 'Start Recording';
     toggleButton.className = selectedRecordingId ? 'btn-continue' : 'btn-primary';
     if (currentSessionId) sessionUrl.style.display = 'inline';
