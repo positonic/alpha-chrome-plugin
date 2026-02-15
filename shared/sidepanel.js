@@ -61,6 +61,46 @@ let lastSavedTranscription = ''; // Track what's already been saved to server (f
 let lastScreenshotTime = 0;
 const SCREENSHOT_COOLDOWN = 2000; // 2 seconds cooldown
 
+// --- Output helpers (contentEditable-safe) ---
+
+/** Append transcribed text without disrupting cursor position */
+function appendToOutput(newText) {
+    const separator = output.textContent ? ' ' : '';
+    output.appendChild(document.createTextNode(separator + newText));
+    // Auto-scroll only if user is near the bottom
+    if ((output.scrollHeight - output.scrollTop - output.clientHeight) < 50) {
+        output.scrollTop = output.scrollHeight;
+    }
+}
+
+/** Full replacement (used for clear / screenshot command rewrites) */
+function setOutputContent(text) {
+    output.textContent = text;
+}
+
+// Sync user edits back to in-memory transcript
+output.addEventListener('input', () => {
+    currentTranscription = output.textContent;
+    // Clamp saved marker if user deleted already-saved text
+    if (currentTranscription.length < lastSavedTranscription.length) {
+        lastSavedTranscription = currentTranscription;
+    }
+});
+
+// Force plain-text paste (no HTML formatting)
+output.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    document.execCommand('insertText', false, text);
+});
+
+// Block formatting shortcuts (Ctrl/Cmd + B/I/U)
+output.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && ['b', 'i', 'u'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+    }
+});
+
 // --- Utilities (from dictation.js) ---
 
 async function getApiKey() {
@@ -561,7 +601,8 @@ async function startServerSession() {
     }
 
     currentSessionId = data.result.data.json.id;
-    const sessionLinkUrl = `${apiBaseURL}/redirect-recording-to-workspace/${currentSessionId}`;
+    const sessionUrlPath = EXTENSION_CONFIG.sessionUrlPath || '/redirect-recording-to-workspace/';
+    const sessionLinkUrl = `${apiBaseURL}${sessionUrlPath}${currentSessionId}`;
     sessionUrl.href = sessionLinkUrl;
 }
 
@@ -632,7 +673,7 @@ function handleScreenshotCommand(transcript) {
 
             // Replace screenshot command text with [SCREENSHOT] marker in transcript
             currentTranscription = currentTranscription.replace(/take\s+a?\s*screenshot/gi, '[SCREENSHOT]');
-            output.textContent = currentTranscription;
+            setOutputContent(currentTranscription);
             // Save the updated transcript with [SCREENSHOT] marker as a delta
             const delta = currentTranscription.slice(lastSavedTranscription.length).trim();
             if (delta) {
@@ -676,7 +717,7 @@ async function takeScreenshot() {
         // Insert [SCREENSHOT] marker into transcript
         if (isListening && currentSessionId) {
             currentTranscription += (currentTranscription ? ' ' : '') + '[SCREENSHOT]';
-            output.textContent = currentTranscription;
+            appendToOutput('[SCREENSHOT]');
             const delta = currentTranscription.slice(lastSavedTranscription.length).trim();
             if (delta) {
                 saveTranscription(currentSessionId, delta);
@@ -804,7 +845,7 @@ function wireEngine(eng) {
     // Whisper returns independent 5-second chunks — append each one.
     eng.onresult = (text) => {
         currentTranscription += (currentTranscription ? ' ' : '') + text;
-        output.textContent = currentTranscription;
+        appendToOutput(text);
 
         // Check only the NEW text for screenshot command (not full transcript,
         // otherwise Whisper's incremental chunks re-trigger it every time)
@@ -889,7 +930,7 @@ async function startListening() {
         }
 
         // Clear output and hide session link
-        output.textContent = '';
+        setOutputContent('');
         sessionUrl.style.display = 'none';
         currentTranscription = '';
         lastSavedTranscription = '';

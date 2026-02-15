@@ -66,6 +66,16 @@
         word-wrap: break-word;
         box-sizing: border-box;
       }
+      #output:focus {
+        outline: none;
+        border-color: #2D68E5;
+        box-shadow: 0 0 0 3px rgba(45, 104, 229, 0.1);
+      }
+      #output:empty::before {
+        content: 'Click "Start Recording" and speak into your microphone...';
+        color: #9ca3af;
+        pointer-events: none;
+      }
       .status-bar {
         background: white;
         padding: 12px 16px;
@@ -524,7 +534,7 @@
       <span class="output-label">Transcribed text:</span>
       <a id="session-url" href="#" target="_blank">View recording</a>
     </div>
-    <div id="output">Click "Start Recording" and speak into your microphone...</div>
+    <div id="output" contenteditable="true" spellcheck="false"></div>
 
     </div><!-- end #panelRecording -->
 
