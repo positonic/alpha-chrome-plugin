@@ -1248,7 +1248,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         name,
                         priority: 'Quick',
                         source: 'chrome-extension',
-                        parseNaturalLanguage: false,
+                        parseNaturalLanguage: true,
                     }
                 };
                 if (projectId && projectId !== 'default') {
