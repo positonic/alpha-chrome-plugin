@@ -241,14 +241,24 @@ function escapeHtml(str) {
         .replace(/"/g, '&quot;');
 }
 
-function formatActionName(url, title, context) {
+function formatLink(url, title) {
     const safeUrl = url.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
     const displayText = title ? escapeHtml(title) : safeUrl;
-    const link = `<a href="${safeUrl}">${displayText}</a>`;
+    return `<a href="${safeUrl}">${displayText}</a>`;
+}
+
+function formatActionName(url, title, context) {
+    const link = formatLink(url, title);
     if (context && context.trim()) {
-        return `${escapeHtml(context.trim())}: ${link}`;
+        return {
+            plain: context.trim(),
+            html: `${escapeHtml(context.trim())}: ${link}`,
+        };
     }
-    return link;
+    return {
+        plain: title || url,
+        html: link,
+    };
 }
 
 // TODO: Replace with real API call once backend endpoint exists.
@@ -1765,10 +1775,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     throw new Error('Please select a project first');
                 }
                 const context = savePageContext ? savePageContext.value : '';
-                const name = formatActionName(tab.url, tab.title, context);
+                const { plain } = formatActionName(tab.url, tab.title, context);
                 const body = {
                     json: {
-                        name,
+                        name: plain,
                         priority: 'Quick',
                         source: 'chrome-extension',
                         parseNaturalLanguage: true,
@@ -1783,6 +1793,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     body: JSON.stringify(body)
                 });
                 if (response.ok) {
+                    const result = await response.json();
+                    const actionId = result?.result?.data?.json?.action?.id;
+                    if (actionId) {
+                        const cleanedName = result?.result?.data?.json?.action?.name || plain;
+                        const link = formatLink(tab.url, tab.title);
+                        const finalName = context && context.trim()
+                            ? `${escapeHtml(cleanedName)}: ${link}`
+                            : link;
+                        apiUpdateAction(actionId, { name: finalName });
+                    }
                     savePageBtn.textContent = 'Saved!';
                     if (savePageStatus) {
                         savePageStatus.textContent = 'Action created';
