@@ -4,5 +4,7 @@ const EXTENSION_CONFIG = {
     hasProjects: false,
     hasSavePage: false,
     sessionUrlPath: "/session/",
-    projects: [] // No projects for Tradescape
+    cookieDomain: "https://tradetronic.vercel.app",
+    sessionCookieNames: ["__Secure-authjs.session-token", "authjs.session-token"],
+    projects: []
 };

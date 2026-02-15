@@ -502,12 +502,16 @@ saveApiKeyBtn.onclick = async () => {
 
     apiKeyStatusEl.textContent = 'Validating key...';
     apiKeyStatusEl.classList.remove('error');
-    const projects = await fetchProjects(apiKey);
-    if (projects.length === 0) {
-        apiKeyStatusEl.textContent = 'Invalid API key or no projects found';
-        apiKeyStatusEl.classList.add('error');
-        return;
+
+    if (hasProjects) {
+        const projects = await fetchProjects(apiKey);
+        if (projects.length === 0) {
+            apiKeyStatusEl.textContent = 'Invalid API key or no projects found';
+            apiKeyStatusEl.classList.add('error');
+            return;
+        }
     }
+
     chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey, 'AUTH_METHOD': 'manual' }, async () => {
         apiKeyStatusEl.textContent = '';
         const ready = await checkSetupState();
