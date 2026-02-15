@@ -1024,6 +1024,14 @@ function renderRecordingActions(drawer, actions, sessionId) {
                 link.appendChild(priority);
             }
 
+            if (action.actionScreenshots && action.actionScreenshots.length > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'recording-action-screenshot-badge';
+                badge.textContent = action.actionScreenshots.length;
+                badge.title = `${action.actionScreenshots.length} screenshot(s)`;
+                link.appendChild(badge);
+            }
+
             list.appendChild(link);
         });
 
@@ -1284,6 +1292,25 @@ function renderActionsModal(actions) {
 
         content.appendChild(nameInput);
         content.appendChild(descInput);
+
+        // Screenshot thumbnails (if any)
+        if (action.actionScreenshots && action.actionScreenshots.length > 0) {
+            const thumbRow = document.createElement('div');
+            thumbRow.className = 'action-screenshots';
+            action.actionScreenshots.forEach(({ screenshot }) => {
+                const thumb = document.createElement('img');
+                thumb.className = 'action-screenshot-thumb';
+                thumb.src = screenshot.url;
+                thumb.alt = 'Screenshot';
+                thumb.title = screenshot.timestamp;
+                thumb.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    window.open(screenshot.url, '_blank');
+                });
+                thumbRow.appendChild(thumb);
+            });
+            content.appendChild(thumbRow);
+        }
 
         // Priority select
         const prioritySelect = buildPrioritySelect(action.id, action.priority || 'Quick');
