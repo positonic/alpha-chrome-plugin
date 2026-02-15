@@ -1878,7 +1878,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     if (createActionName) createActionName.value = '';
                     if (createActionDesc) createActionDesc.value = '';
-                    if (createActionPriority) createActionPriority.value = 'Medium';
+                    if (createActionPriority) createActionPriority.value = 'Quick';
                 } else {
                     createActionBtn.textContent = 'Failed';
                     if (createActionStatus) {
