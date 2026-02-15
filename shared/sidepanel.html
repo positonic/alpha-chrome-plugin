@@ -215,6 +215,25 @@
       .save-page-status.success { color: #059669; }
       .save-page-status.error { color: #dc3545; }
 
+      /* Create Action */
+      .create-action-desc {
+        resize: vertical;
+        font-family: inherit;
+        line-height: 1.5;
+        min-height: 60px;
+      }
+      .create-action-priority {
+        margin-bottom: 10px;
+      }
+      .btn-create-action {
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+      }
+      .btn-create-action:hover {
+        background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%);
+        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+      }
+
       /* Model progress */
       .model-status {
         margin-bottom: 12px;
@@ -787,6 +806,7 @@
     <!-- Panel-level tabs (conditionally shown by JS based on hasSavePage config) -->
     <div class="panel-tabs" id="panelTabs">
       <button id="tabSavePage" class="active">Save Page</button>
+      <button id="tabCreateAction">Create Action</button>
       <button id="tabRecording">Recording</button>
     </div>
 
@@ -797,7 +817,22 @@
       <div class="save-page-status" id="savePageStatus"></div>
     </div>
 
-    <!-- Tab 2: Recording (contains all existing dictation UI) -->
+    <!-- Tab 2: Create Action -->
+    <div class="tab-panel" id="panelCreateAction">
+      <input type="text" class="save-page-input" id="createActionName" placeholder="Action name...">
+      <textarea class="save-page-input create-action-desc" id="createActionDesc" placeholder="Description (optional)..." rows="3"></textarea>
+      <select class="shared-select create-action-priority" id="createActionPriority">
+        <option value="Quick">Quick</option>
+        <option value="Low">Low</option>
+        <option value="Medium" selected>Medium</option>
+        <option value="High">High</option>
+        <option value="Urgent">Urgent</option>
+      </select>
+      <button class="btn-create-action" id="createActionBtn">Create Action</button>
+      <div class="save-page-status" id="createActionStatus"></div>
+    </div>
+
+    <!-- Tab 3: Recording (contains all existing dictation UI) -->
     <div class="tab-panel" id="panelRecording">
 
     <input type="text" class="save-page-input" id="recordingName" placeholder="Recording name (optional)...">

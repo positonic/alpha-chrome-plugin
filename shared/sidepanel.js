@@ -45,6 +45,15 @@ const savePageBtn = document.getElementById('savePageBtn');
 const savePageContext = document.getElementById('savePageContext');
 const savePageStatus = document.getElementById('savePageStatus');
 
+// Create Action tab elements
+const tabCreateActionBtn = document.getElementById('tabCreateAction');
+const panelCreateAction = document.getElementById('panelCreateAction');
+const createActionName = document.getElementById('createActionName');
+const createActionDesc = document.getElementById('createActionDesc');
+const createActionPriority = document.getElementById('createActionPriority');
+const createActionBtn = document.getElementById('createActionBtn');
+const createActionStatus = document.getElementById('createActionStatus');
+
 const autoAuthCard = document.getElementById('autoAuthCard');
 
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
@@ -1554,32 +1563,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Initialize panel tabs based on config
+    const allTabs = [tabSavePageBtn, tabCreateActionBtn, tabRecordingBtn].filter(Boolean);
+    const allPanels = [panelSavePage, panelCreateAction, panelRecording].filter(Boolean);
+
+    function switchTab(activeTab, activePanel) {
+        allTabs.forEach(t => t.classList.remove('active'));
+        allPanels.forEach(p => p.classList.remove('active'));
+        if (activeTab) activeTab.classList.add('active');
+        if (activePanel) activePanel.classList.add('active');
+    }
+
     if (hasSavePage) {
         panelTabs.classList.add('visible');
-        panelSavePage.classList.add('active');
-        panelRecording.classList.remove('active');
+        switchTab(tabSavePageBtn, panelSavePage);
     } else {
         panelTabs.classList.remove('visible');
-        panelSavePage.classList.remove('active');
-        panelRecording.classList.add('active');
+        switchTab(tabRecordingBtn, panelRecording);
     }
 
     // Tab switching
     if (tabSavePageBtn) {
-        tabSavePageBtn.addEventListener('click', () => {
-            tabSavePageBtn.classList.add('active');
-            tabRecordingBtn.classList.remove('active');
-            panelSavePage.classList.add('active');
-            panelRecording.classList.remove('active');
-        });
+        tabSavePageBtn.addEventListener('click', () => switchTab(tabSavePageBtn, panelSavePage));
+    }
+    if (tabCreateActionBtn) {
+        tabCreateActionBtn.addEventListener('click', () => switchTab(tabCreateActionBtn, panelCreateAction));
     }
     if (tabRecordingBtn) {
-        tabRecordingBtn.addEventListener('click', () => {
-            tabRecordingBtn.classList.add('active');
-            tabSavePageBtn.classList.remove('active');
-            panelRecording.classList.add('active');
-            panelSavePage.classList.remove('active');
-        });
+        tabRecordingBtn.addEventListener('click', () => switchTab(tabRecordingBtn, panelRecording));
     }
 
     // Save Page button
@@ -1649,6 +1659,81 @@ document.addEventListener('DOMContentLoaded', async () => {
             setTimeout(() => {
                 savePageBtn.disabled = false;
                 savePageBtn.textContent = 'Save Page';
+            }, 2000);
+        });
+    }
+
+    // Create Action button
+    if (createActionBtn) {
+        createActionBtn.addEventListener('click', async () => {
+            if (createActionStatus) {
+                createActionStatus.textContent = '';
+                createActionStatus.className = 'save-page-status';
+            }
+            const name = createActionName ? createActionName.value.trim() : '';
+            if (!name) {
+                if (createActionStatus) {
+                    createActionStatus.textContent = 'Please enter an action name';
+                    createActionStatus.className = 'save-page-status error';
+                }
+                return;
+            }
+            createActionBtn.disabled = true;
+            createActionBtn.textContent = 'Creating...';
+            try {
+                await refreshAuthIfNeeded();
+                const headers = await buildAuthHeaders();
+                const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
+                if (hasProjects && !projectId) {
+                    if (sharedProject) sharedProject.focus();
+                    throw new Error('Please select a project first');
+                }
+                const description = createActionDesc ? createActionDesc.value.trim() : '';
+                const priority = createActionPriority ? createActionPriority.value : 'Medium';
+                const body = {
+                    json: {
+                        name,
+                        priority,
+                        source: 'chrome-extension',
+                        parseNaturalLanguage: true,
+                    }
+                };
+                if (description) body.json.description = description;
+                if (projectId && projectId !== 'default') {
+                    body.json.projectId = projectId;
+                }
+                const response = await fetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(body)
+                });
+                if (response.ok) {
+                    createActionBtn.textContent = 'Created!';
+                    if (createActionStatus) {
+                        createActionStatus.textContent = 'Action created';
+                        createActionStatus.className = 'save-page-status success';
+                    }
+                    if (createActionName) createActionName.value = '';
+                    if (createActionDesc) createActionDesc.value = '';
+                    if (createActionPriority) createActionPriority.value = 'Medium';
+                } else {
+                    createActionBtn.textContent = 'Failed';
+                    if (createActionStatus) {
+                        createActionStatus.textContent = 'Failed to create action';
+                        createActionStatus.className = 'save-page-status error';
+                    }
+                }
+            } catch (error) {
+                console.error('Error creating action:', error);
+                createActionBtn.textContent = 'Failed';
+                if (createActionStatus) {
+                    createActionStatus.textContent = error.message || 'Network error';
+                    createActionStatus.className = 'save-page-status error';
+                }
+            }
+            setTimeout(() => {
+                createActionBtn.disabled = false;
+                createActionBtn.textContent = 'Create Action';
             }, 2000);
         });
     }
