@@ -529,6 +529,100 @@
         color: #b0b7c3;
         margin-top: 2px;
       }
+      /* Recording item expand arrow */
+      .recording-item-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .recording-item-header-content {
+        flex: 1;
+        min-width: 0;
+      }
+      .recording-item-arrow {
+        font-size: 10px;
+        color: #9ca3af;
+        transition: transform 0.2s ease;
+        margin-top: 3px;
+        flex-shrink: 0;
+      }
+      .recording-item.expanded .recording-item-arrow {
+        transform: rotate(90deg);
+      }
+      /* Actions drawer below recording item */
+      .recording-actions-drawer {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.25s ease;
+      }
+      .recording-actions-drawer.open {
+        max-height: 500px;
+      }
+      .recording-actions-list {
+        padding: 8px 0 4px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .recording-action-link {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        text-decoration: none;
+        color: #374151;
+        font-size: 12px;
+        transition: all 0.15s ease;
+        cursor: pointer;
+      }
+      .recording-action-link:hover {
+        background: #eff4ff;
+        border-color: #2D68E5;
+        color: #2D68E5;
+      }
+      .recording-action-link-icon {
+        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
+        color: #9ca3af;
+      }
+      .recording-action-link:hover .recording-action-link-icon {
+        color: #2D68E5;
+      }
+      .recording-action-link-name {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .recording-action-link-priority {
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-weight: 500;
+        flex-shrink: 0;
+      }
+      .priority-urgent { background: #fef2f2; color: #dc2626; }
+      .priority-high { background: #fff7ed; color: #ea580c; }
+      .priority-medium { background: #fffbeb; color: #d97706; }
+      .priority-low { background: #f0fdf4; color: #16a34a; }
+      .priority-quick { background: #eff6ff; color: #2563eb; }
+      .recording-actions-empty {
+        font-size: 11px;
+        color: #9ca3af;
+        padding: 6px 10px;
+        text-align: center;
+      }
+      .recording-actions-loading {
+        font-size: 11px;
+        color: #9ca3af;
+        padding: 6px 10px;
+        text-align: center;
+      }
 
       /* Generate Actions button */
       .btn-generate-actions {

@@ -90,6 +90,9 @@ let recordingHistory = []; // Array of { sessionId, title, transcription, timest
 let selectedRecordingId = null; // Currently selected recording's sessionId
 const MAX_HISTORY = 20;
 let titleUpdateTimer = null;
+let cachedWorkspaces = []; // Cached workspace list for slug lookups
+let expandedRecordingId = null; // Currently expanded recording's sessionId
+const recordingActionsCache = {}; // Cache of fetched actions per sessionId
 
 // --- Output helpers (contentEditable-safe) ---
 
@@ -259,7 +262,9 @@ async function fetchWorkspaces() {
         });
         if (!response.ok) throw new Error(`API returned ${response.status}`);
         const data = await response.json();
-        return data.result.data.json.workspaces; // expected: [{id, name}, ...]
+        const workspaces = data.result.data.json.workspaces; // expected: [{id, name, slug}, ...]
+        cachedWorkspaces = workspaces;
+        return workspaces;
     } catch (error) {
         console.error('Error fetching workspaces:', error);
         return [];
