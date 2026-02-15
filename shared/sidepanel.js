@@ -967,7 +967,7 @@ function renderRecordingActions(drawer, actions) {
 
         if (action.priority) {
             const priority = document.createElement('span');
-            priority.className = 'recording-action-link-priority priority-' + action.priority.toLowerCase();
+            priority.className = 'recording-action-link-priority ' + getPriorityClass(action.priority);
             priority.textContent = action.priority;
             link.appendChild(priority);
         }
@@ -1067,17 +1067,12 @@ output.addEventListener('blur', () => {
 // --- Generate Actions modal logic ---
 
 function getPriorityClass(priority) {
-    if (!priority) return 'priority-medium';
-    const p = priority.toLowerCase();
-    if (p === 'urgent') return 'priority-urgent';
-    if (p === 'high') return 'priority-high';
-    if (p === 'medium') return 'priority-medium';
-    if (p === 'low') return 'priority-low';
-    if (p === 'quick') return 'priority-quick';
-    return 'priority-medium';
+    if (!priority) return 'priority-quick';
+    const slug = priority.toLowerCase().replace(/\s+/g, '-');
+    return `priority-${slug}`;
 }
 
-const PRIORITY_OPTIONS = ['Urgent', 'High', 'Medium', 'Low', 'Quick'];
+const PRIORITY_OPTIONS = ['Quick', 'Scheduled', '1st Priority', '2nd Priority', '3rd Priority', '4th Priority', '5th Priority', 'Errand', 'Remember', 'Watch', 'Someday Maybe'];
 
 function buildPrioritySelect(actionId, currentPriority) {
     const select = document.createElement('select');
@@ -1167,7 +1162,7 @@ function renderActionsModal(actions) {
         content.appendChild(descInput);
 
         // Priority select
-        const prioritySelect = buildPrioritySelect(action.id, action.priority || 'Medium');
+        const prioritySelect = buildPrioritySelect(action.id, action.priority || 'Quick');
 
         row.appendChild(cb);
         row.appendChild(content);
@@ -1857,7 +1852,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     throw new Error('Please select a project first');
                 }
                 const description = createActionDesc ? createActionDesc.value.trim() : '';
-                const priority = createActionPriority ? createActionPriority.value : 'Medium';
+                const priority = createActionPriority ? createActionPriority.value : 'Quick';
                 const body = {
                     json: {
                         name,

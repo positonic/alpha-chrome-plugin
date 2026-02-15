@@ -606,11 +606,17 @@
         font-weight: 500;
         flex-shrink: 0;
       }
-      .priority-urgent { background: #fef2f2; color: #dc2626; }
-      .priority-high { background: #fff7ed; color: #ea580c; }
-      .priority-medium { background: #fffbeb; color: #d97706; }
-      .priority-low { background: #f0fdf4; color: #16a34a; }
+      .priority-1st-priority { background: #fef2f2; color: #dc2626; }
+      .priority-2nd-priority { background: #fff7ed; color: #ea580c; }
+      .priority-3rd-priority { background: #fffbeb; color: #d97706; }
+      .priority-4th-priority { background: #f0fdf4; color: #16a34a; }
+      .priority-5th-priority { background: #f0fdf4; color: #6b7280; }
       .priority-quick { background: #eff6ff; color: #2563eb; }
+      .priority-scheduled { background: #faf5ff; color: #7c3aed; }
+      .priority-errand { background: #f5f5f4; color: #78716c; }
+      .priority-remember { background: #fdf4ff; color: #a21caf; }
+      .priority-watch { background: #ecfeff; color: #0891b2; }
+      .priority-someday-maybe { background: #f8fafc; color: #94a3b8; }
       .recording-actions-empty {
         font-size: 11px;
         color: #9ca3af;
@@ -822,11 +828,17 @@
       .action-edit-priority:focus {
         box-shadow: 0 0 0 2px rgba(45, 104, 229, 0.2);
       }
-      .action-edit-priority.priority-urgent { background-color: #fef2f2; color: #dc2626; }
-      .action-edit-priority.priority-high { background-color: #fff7ed; color: #ea580c; }
-      .action-edit-priority.priority-medium { background-color: #fefce8; color: #ca8a04; }
-      .action-edit-priority.priority-low { background-color: #f0fdf4; color: #16a34a; }
+      .action-edit-priority.priority-1st-priority { background-color: #fef2f2; color: #dc2626; }
+      .action-edit-priority.priority-2nd-priority { background-color: #fff7ed; color: #ea580c; }
+      .action-edit-priority.priority-3rd-priority { background-color: #fefce8; color: #ca8a04; }
+      .action-edit-priority.priority-4th-priority { background-color: #f0fdf4; color: #16a34a; }
+      .action-edit-priority.priority-5th-priority { background-color: #f0fdf4; color: #6b7280; }
       .action-edit-priority.priority-quick { background-color: #eff6ff; color: #2563eb; }
+      .action-edit-priority.priority-scheduled { background-color: #faf5ff; color: #7c3aed; }
+      .action-edit-priority.priority-errand { background-color: #f5f5f4; color: #78716c; }
+      .action-edit-priority.priority-remember { background-color: #fdf4ff; color: #a21caf; }
+      .action-edit-priority.priority-watch { background-color: #ecfeff; color: #0891b2; }
+      .action-edit-priority.priority-someday-maybe { background-color: #f8fafc; color: #94a3b8; }
       .actions-modal-loading,
       .actions-modal-empty {
         text-align: center;
@@ -916,11 +928,17 @@
       <input type="text" class="save-page-input" id="createActionName" placeholder="Action name...">
       <textarea class="save-page-input create-action-desc" id="createActionDesc" placeholder="Description (optional)..." rows="3"></textarea>
       <select class="shared-select create-action-priority" id="createActionPriority">
-        <option value="Quick">Quick</option>
-        <option value="Low">Low</option>
-        <option value="Medium" selected>Medium</option>
-        <option value="High">High</option>
-        <option value="Urgent">Urgent</option>
+        <option value="Quick" selected>Quick</option>
+        <option value="Scheduled">Scheduled</option>
+        <option value="1st Priority">1st Priority</option>
+        <option value="2nd Priority">2nd Priority</option>
+        <option value="3rd Priority">3rd Priority</option>
+        <option value="4th Priority">4th Priority</option>
+        <option value="5th Priority">5th Priority</option>
+        <option value="Errand">Errand</option>
+        <option value="Remember">Remember</option>
+        <option value="Watch">Watch</option>
+        <option value="Someday Maybe">Someday Maybe</option>
       </select>
       <button class="btn-create-action" id="createActionBtn">Create Action</button>
       <div class="save-page-status" id="createActionStatus"></div>
