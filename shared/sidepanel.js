@@ -52,6 +52,10 @@ const hasSavePage = EXTENSION_CONFIG.hasSavePage || false;
 const cookieDomain = EXTENSION_CONFIG.cookieDomain || null;
 const sessionCookieNames = EXTENSION_CONFIG.sessionCookieNames || null;
 
+// Recording history elements
+const recordingListEl = document.getElementById('recordingList');
+const recordingHistoryEl = document.getElementById('recordingHistory');
+
 let engine = null; // The Whisper speech engine instance
 
 let isListening = false;
@@ -60,6 +64,12 @@ let currentTranscription = '';
 let lastSavedTranscription = ''; // Track what's already been saved to server (for delta saves)
 let lastScreenshotTime = 0;
 const SCREENSHOT_COOLDOWN = 2000; // 2 seconds cooldown
+
+// Recording history state
+let recordingHistory = []; // Array of { sessionId, title, transcription, timestamp, sessionUrl }
+let selectedRecordingId = null; // Currently selected recording's sessionId
+const MAX_HISTORY = 20;
+let titleUpdateTimer = null;
 
 // --- Output helpers (contentEditable-safe) ---
 
@@ -643,6 +653,184 @@ async function saveScreenshot(dataUrl) {
     }
 }
 
+// --- Update session title on server ---
+
+async function updateSessionTitle(sessionId, title) {
+    try {
+        const headers = await buildAuthHeaders();
+        const response = await fetch(`${apiBaseURL}/api/trpc/transcription.updateTitle`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ json: { id: sessionId, title } })
+        });
+        return response.ok;
+    } catch (error) {
+        console.error('Error updating title:', error);
+        return false;
+    }
+}
+
+// --- Update full transcription text on server ---
+
+async function updateTranscriptionText(sessionId, transcription) {
+    try {
+        const headers = await buildAuthHeaders();
+        const response = await fetch(`${apiBaseURL}/api/trpc/transcription.updateTranscription`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ json: { id: sessionId, transcription } })
+        });
+        return response.ok;
+    } catch (error) {
+        console.error('Error updating transcription:', error);
+        return false;
+    }
+}
+
+// --- Recording history management ---
+
+async function loadRecordingHistory() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['RECORDING_HISTORY'], (result) => {
+            recordingHistory = result.RECORDING_HISTORY || [];
+            resolve();
+        });
+    });
+}
+
+async function saveRecordingHistory() {
+    await chrome.storage.local.set({ RECORDING_HISTORY: recordingHistory });
+}
+
+function addRecordingToHistory(sessionId, title, transcription, sessionLinkUrl) {
+    // Remove existing entry with same sessionId (in case of duplicates)
+    recordingHistory = recordingHistory.filter(r => r.sessionId !== sessionId);
+    // Add to front
+    recordingHistory.unshift({
+        sessionId,
+        title: title || '',
+        transcription: transcription || '',
+        timestamp: new Date().toISOString(),
+        sessionUrl: sessionLinkUrl || ''
+    });
+    // Cap at MAX_HISTORY
+    if (recordingHistory.length > MAX_HISTORY) {
+        recordingHistory = recordingHistory.slice(0, MAX_HISTORY);
+    }
+    saveRecordingHistory();
+}
+
+function updateRecordingInHistory(sessionId, updates) {
+    const recording = recordingHistory.find(r => r.sessionId === sessionId);
+    if (recording) {
+        Object.assign(recording, updates);
+        saveRecordingHistory();
+    }
+}
+
+function renderRecordingList() {
+    if (!recordingListEl) return;
+    recordingListEl.innerHTML = '';
+
+    if (recordingHistory.length === 0) {
+        recordingHistoryEl.style.display = 'none';
+        return;
+    }
+    recordingHistoryEl.style.display = '';
+
+    recordingHistory.forEach((rec) => {
+        const item = document.createElement('div');
+        item.className = 'recording-item' + (rec.sessionId === selectedRecordingId ? ' selected' : '');
+        item.dataset.sessionId = rec.sessionId;
+
+        const title = document.createElement('div');
+        title.className = 'recording-item-title';
+        title.textContent = rec.title || 'Untitled Recording';
+
+        const preview = document.createElement('div');
+        preview.className = 'recording-item-preview';
+        preview.textContent = rec.transcription
+            ? (rec.transcription.length > 80 ? rec.transcription.slice(0, 80) + '...' : rec.transcription)
+            : 'No transcription';
+
+        const time = document.createElement('div');
+        time.className = 'recording-item-time';
+        const d = new Date(rec.timestamp);
+        time.textContent = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
+            d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+        item.appendChild(title);
+        item.appendChild(preview);
+        item.appendChild(time);
+
+        item.addEventListener('click', () => selectRecording(rec.sessionId));
+        recordingListEl.appendChild(item);
+    });
+}
+
+function selectRecording(sessionId) {
+    if (isListening) return; // Don't switch while recording
+
+    selectedRecordingId = sessionId;
+    const rec = recordingHistory.find(r => r.sessionId === sessionId);
+    if (!rec) return;
+
+    // Update UI with selected recording's data
+    recordingNameInput.value = rec.title || '';
+    setOutputContent(rec.transcription || '');
+    currentTranscription = rec.transcription || '';
+    lastSavedTranscription = rec.transcription || '';
+    currentSessionId = rec.sessionId;
+
+    // Show session URL link
+    if (rec.sessionUrl) {
+        sessionUrl.href = rec.sessionUrl;
+        sessionUrl.style.display = 'inline';
+    } else {
+        sessionUrl.style.display = 'none';
+    }
+
+    renderRecordingList();
+}
+
+// --- Debounced title update ---
+
+function onRecordingNameInput() {
+    if (!selectedRecordingId) return;
+    clearTimeout(titleUpdateTimer);
+    titleUpdateTimer = setTimeout(() => {
+        const newTitle = recordingNameInput.value.trim();
+        updateRecordingInHistory(selectedRecordingId, { title: newTitle });
+        renderRecordingList();
+        // Update on server
+        updateSessionTitle(selectedRecordingId, newTitle);
+    }, 500);
+}
+
+if (recordingNameInput) {
+    recordingNameInput.addEventListener('input', onRecordingNameInput);
+}
+
+// --- Output blur handler for text editing ---
+
+output.addEventListener('blur', () => {
+    if (isListening) return; // Don't save edits while recording is active
+    if (!selectedRecordingId) return;
+
+    const editedText = output.textContent || '';
+    const rec = recordingHistory.find(r => r.sessionId === selectedRecordingId);
+    if (!rec || rec.transcription === editedText) return;
+
+    // Update local history
+    updateRecordingInHistory(selectedRecordingId, { transcription: editedText });
+    currentTranscription = editedText;
+    lastSavedTranscription = editedText;
+    renderRecordingList();
+
+    // Update on server (full text replacement)
+    updateTranscriptionText(selectedRecordingId, editedText);
+});
+
 // --- Screenshot handling ---
 
 function handleScreenshotCommand(transcript) {
@@ -934,9 +1122,14 @@ async function startListening() {
         sessionUrl.style.display = 'none';
         currentTranscription = '';
         lastSavedTranscription = '';
+        selectedRecordingId = null;
+        renderRecordingList();
 
         // Start server session
         await startServerSession();
+
+        // Auto-select the new recording
+        selectedRecordingId = currentSessionId;
 
         // Start the engine
         await engine.start();
@@ -966,6 +1159,16 @@ async function stopListening() {
     toggleButton.textContent = 'Start Recording';
     toggleButton.className = 'btn-primary';
     if (currentSessionId) sessionUrl.style.display = 'inline';
+
+    // Save to recording history
+    if (currentSessionId) {
+        const title = recordingNameInput ? recordingNameInput.value.trim() : '';
+        const sessionUrlPath = EXTENSION_CONFIG.sessionUrlPath || '/redirect-recording-to-workspace/';
+        const sessionLinkUrl = `${apiBaseURL}${sessionUrlPath}${currentSessionId}`;
+        addRecordingToHistory(currentSessionId, title, currentTranscription, sessionLinkUrl);
+        selectedRecordingId = currentSessionId;
+        renderRecordingList();
+    }
 }
 
 // --- Event handlers ---
@@ -1084,6 +1287,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }, 2000);
         });
     }
+
+    // Load recording history
+    await loadRecordingHistory();
+    renderRecordingList();
 
     // Check setup state — only initialize engine if fully configured
     const isConfigured = await checkSetupState();

@@ -433,6 +433,62 @@
         border-color: #dc3545;
         transform: none;
       }
+
+      /* Recording history list */
+      .recording-history {
+        margin-top: 16px;
+      }
+      .recording-history-header {
+        font-size: 13px;
+        font-weight: 500;
+        color: #6b7280;
+        margin-bottom: 8px;
+      }
+      .recording-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .recording-item {
+        padding: 10px 12px;
+        background: white;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .recording-item:hover {
+        border-color: #d1d5db;
+        background: #f9fafb;
+      }
+      .recording-item.selected {
+        border-color: #2D68E5;
+        background: #eff4ff;
+        border-left-width: 4px;
+      }
+      .recording-item-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .recording-item-preview {
+        font-size: 12px;
+        color: #9ca3af;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .recording-item-time {
+        font-size: 11px;
+        color: #b0b7c3;
+        margin-top: 2px;
+      }
     </style>
   </head>
   <body>
@@ -535,6 +591,12 @@
       <a id="session-url" href="#" target="_blank">View recording</a>
     </div>
     <div id="output" contenteditable="true" spellcheck="false"></div>
+
+    <!-- Recording history -->
+    <div class="recording-history" id="recordingHistory">
+      <div class="recording-history-header">Recent Recordings</div>
+      <div class="recording-list" id="recordingList"></div>
+    </div>
 
     </div><!-- end #panelRecording -->
 
