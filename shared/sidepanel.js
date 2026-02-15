@@ -8,6 +8,7 @@ const recordingNameInput = document.getElementById('recordingName');
 const modelStatusEl = document.getElementById('modelStatus');
 const modelStatusText = document.getElementById('modelStatusText');
 const modelProgressBar = document.getElementById('modelProgressBar');
+const newRecordingBtn = document.getElementById('newRecordingBtn');
 const shutterSound = new Audio('shutter.mp3');
 
 // Setup UI elements
@@ -825,6 +826,27 @@ function selectRecording(sessionId) {
     }
 
     showGenerateActionsButton();
+    toggleButton.textContent = 'Continue Recording';
+    toggleButton.className = 'btn-continue';
+    if (newRecordingBtn) newRecordingBtn.style.display = '';
+    renderRecordingList();
+}
+
+// --- Deselect recording (start fresh) ---
+
+function deselectRecording() {
+    if (isListening) return;
+    selectedRecordingId = null;
+    currentSessionId = null;
+    currentTranscription = '';
+    lastSavedTranscription = '';
+    setOutputContent('');
+    if (recordingNameInput) recordingNameInput.value = '';
+    sessionUrl.style.display = 'none';
+    hideGenerateActionsButton();
+    toggleButton.textContent = 'Start Recording';
+    toggleButton.className = 'btn-primary';
+    if (newRecordingBtn) newRecordingBtn.style.display = 'none';
     renderRecordingList();
 }
 
@@ -1297,11 +1319,12 @@ function wireEngine(eng) {
 
     eng.onstop = () => {
         if (!isListening) {
-            toggleButton.textContent = 'Start Recording';
-            toggleButton.className = 'btn-primary';
+            toggleButton.textContent = selectedRecordingId ? 'Continue Recording' : 'Start Recording';
+            toggleButton.className = selectedRecordingId ? 'btn-continue' : 'btn-primary';
             statusEl.className = '';
             if (currentSessionId) sessionUrl.style.display = 'inline';
             showGenerateActionsButton();
+            if (selectedRecordingId && newRecordingBtn) newRecordingBtn.style.display = '';
         }
     };
 
@@ -1344,24 +1367,28 @@ async function startListening() {
             }
         }
 
-        // Clear output and hide session link
-        setOutputContent('');
-        sessionUrl.style.display = 'none';
-        hideGenerateActionsButton();
-        currentTranscription = '';
-        lastSavedTranscription = '';
-        selectedRecordingId = null;
-        if (recordingNameInput) {
-            recordingNameInput.value = '';
-            recordingNameInput.focus();
+        if (selectedRecordingId) {
+            // CONTINUE mode — reuse existing session, keep state
+            sessionUrl.style.display = 'none';
+            hideGenerateActionsButton();
+            if (newRecordingBtn) newRecordingBtn.style.display = 'none';
+        } else {
+            // FRESH mode — clear state and create new session
+            setOutputContent('');
+            sessionUrl.style.display = 'none';
+            hideGenerateActionsButton();
+            currentTranscription = '';
+            lastSavedTranscription = '';
+            if (recordingNameInput) {
+                recordingNameInput.value = '';
+                recordingNameInput.focus();
+            }
+            if (newRecordingBtn) newRecordingBtn.style.display = 'none';
+            renderRecordingList();
+
+            await startServerSession();
+            selectedRecordingId = currentSessionId;
         }
-        renderRecordingList();
-
-        // Start server session
-        await startServerSession();
-
-        // Auto-select the new recording
-        selectedRecordingId = currentSessionId;
 
         // Start the engine
         await engine.start();
@@ -1388,10 +1415,11 @@ async function stopListening() {
 
     statusEl.textContent = 'Ready';
     statusEl.className = '';
-    toggleButton.textContent = 'Start Recording';
-    toggleButton.className = 'btn-primary';
+    toggleButton.textContent = selectedRecordingId ? 'Continue Recording' : 'Start Recording';
+    toggleButton.className = selectedRecordingId ? 'btn-continue' : 'btn-primary';
     if (currentSessionId) sessionUrl.style.display = 'inline';
     showGenerateActionsButton();
+    if (selectedRecordingId && newRecordingBtn) newRecordingBtn.style.display = '';
 
     // Save to recording history
     if (currentSessionId) {
@@ -1413,6 +1441,10 @@ toggleButton.onclick = () => {
         stopListening();
     }
 };
+
+if (newRecordingBtn) {
+    newRecordingBtn.onclick = deselectRecording;
+}
 
 // --- Initialize ---
 
