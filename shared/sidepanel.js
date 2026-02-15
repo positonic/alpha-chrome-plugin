@@ -714,6 +714,21 @@ async function apiUpdateAction(id, fields) {
     }
 }
 
+async function apiGetActionsByTranscription(transcriptionId) {
+    const headers = await buildAuthHeaders();
+    const input = encodeURIComponent(JSON.stringify({ json: { transcriptionId } }));
+    const response = await fetch(`${apiBaseURL}/api/trpc/action.getByTranscription?input=${input}`, {
+        method: 'GET',
+        headers
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error?.json?.message || `Server returned ${response.status}`);
+    }
+    const data = await response.json();
+    return data.result?.data?.json || [];
+}
+
 // --- Update session title on server ---
 
 async function updateSessionTitle(sessionId, title) {
@@ -800,9 +815,24 @@ function renderRecordingList() {
     recordingHistoryEl.style.display = '';
 
     recordingHistory.forEach((rec) => {
+        const isExpanded = rec.sessionId === expandedRecordingId;
+
         const item = document.createElement('div');
-        item.className = 'recording-item' + (rec.sessionId === selectedRecordingId ? ' selected' : '');
+        item.className = 'recording-item'
+            + (rec.sessionId === selectedRecordingId ? ' selected' : '')
+            + (isExpanded ? ' expanded' : '');
         item.dataset.sessionId = rec.sessionId;
+
+        // Header row with arrow + content
+        const header = document.createElement('div');
+        header.className = 'recording-item-header';
+
+        const arrow = document.createElement('span');
+        arrow.className = 'recording-item-arrow';
+        arrow.textContent = '\u25B6'; // right-pointing triangle
+
+        const headerContent = document.createElement('div');
+        headerContent.className = 'recording-item-header-content';
 
         const title = document.createElement('div');
         title.className = 'recording-item-title';
@@ -820,13 +850,123 @@ function renderRecordingList() {
         time.textContent = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
             d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
-        item.appendChild(title);
-        item.appendChild(preview);
-        item.appendChild(time);
+        headerContent.appendChild(title);
+        headerContent.appendChild(preview);
+        headerContent.appendChild(time);
 
-        item.addEventListener('click', () => selectRecording(rec.sessionId));
+        header.appendChild(arrow);
+        header.appendChild(headerContent);
+        item.appendChild(header);
+
+        // Actions drawer
+        const drawer = document.createElement('div');
+        drawer.className = 'recording-actions-drawer' + (isExpanded ? ' open' : '');
+        drawer.id = 'actions-drawer-' + rec.sessionId;
+        item.appendChild(drawer);
+
+        // Click on header selects the recording AND toggles drawer
+        header.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Toggle drawer state before selectRecording (which calls renderRecordingList)
+            expandedRecordingId = expandedRecordingId === rec.sessionId ? null : rec.sessionId;
+            selectRecording(rec.sessionId);
+        });
+
         recordingListEl.appendChild(item);
+
+        // If expanded, load actions into drawer
+        if (isExpanded) {
+            loadRecordingActions(rec.sessionId);
+        }
     });
+}
+
+function toggleRecordingDrawer(sessionId) {
+    if (expandedRecordingId === sessionId) {
+        expandedRecordingId = null;
+    } else {
+        expandedRecordingId = sessionId;
+    }
+    renderRecordingList();
+}
+
+async function loadRecordingActions(sessionId) {
+    const drawer = document.getElementById('actions-drawer-' + sessionId);
+    if (!drawer) return;
+
+    // Use cache if available
+    if (recordingActionsCache[sessionId]) {
+        renderRecordingActions(drawer, recordingActionsCache[sessionId]);
+        return;
+    }
+
+    drawer.innerHTML = '<div class="recording-actions-loading">Loading actions...</div>';
+
+    try {
+        await refreshAuthIfNeeded();
+        const actions = await apiGetActionsByTranscription(sessionId);
+        recordingActionsCache[sessionId] = actions;
+        renderRecordingActions(drawer, actions);
+    } catch (error) {
+        console.error('Error loading actions for recording:', sessionId, error);
+        drawer.innerHTML = '<div class="recording-actions-empty">Could not load actions</div>';
+    }
+}
+
+function getActionUrl(actionId) {
+    // Find the selected workspace slug
+    const wsId = sharedWorkspace ? sharedWorkspace.value : null;
+    let wsSlug = null;
+    if (wsId && cachedWorkspaces.length > 0) {
+        const ws = cachedWorkspaces.find(w => w.id === wsId);
+        if (ws && ws.slug) wsSlug = ws.slug;
+    }
+
+    if (wsSlug) {
+        return `${apiBaseURL}/w/${wsSlug}/actions?actionId=${actionId}`;
+    }
+    return `${apiBaseURL}/actions?actionId=${actionId}`;
+}
+
+function renderRecordingActions(drawer, actions) {
+    if (!actions || actions.length === 0) {
+        drawer.innerHTML = '<div class="recording-actions-empty">No actions for this recording</div>';
+        return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'recording-actions-list';
+
+    actions.forEach((action) => {
+        const link = document.createElement('a');
+        link.className = 'recording-action-link';
+        link.href = getActionUrl(action.id);
+        link.target = '_blank';
+        link.title = action.description || action.name || '';
+
+        // Checkbox icon SVG
+        link.innerHTML = `<svg class="recording-action-link-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="1" y="1" width="14" height="14" rx="3"/>
+            <path d="M4.5 8.5L7 11L11.5 5.5"/>
+        </svg>`;
+
+        const name = document.createElement('span');
+        name.className = 'recording-action-link-name';
+        name.textContent = action.name || 'Untitled Action';
+        link.appendChild(name);
+
+        if (action.priority) {
+            const priority = document.createElement('span');
+            priority.className = 'recording-action-link-priority priority-' + action.priority.toLowerCase();
+            priority.textContent = action.priority;
+            link.appendChild(priority);
+        }
+
+        list.appendChild(link);
+    });
+
+    drawer.innerHTML = '';
+    drawer.appendChild(list);
 }
 
 function selectRecording(sessionId) {
@@ -1155,6 +1295,9 @@ async function handlePublishActions() {
         actionsModalPublish.style.display = 'none';
         actionsModalCancel.textContent = 'Done';
         actionsModalCancel.disabled = false;
+
+        // Invalidate actions cache so drawer shows fresh data
+        delete recordingActionsCache[currentSessionId];
 
         setTimeout(closeActionsModal, 2000);
     } catch (error) {
