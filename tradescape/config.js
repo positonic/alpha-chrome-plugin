@@ -3,5 +3,6 @@ const EXTENSION_CONFIG = {
     apiBaseURL: "https://tradetronic.vercel.app",
     hasProjects: false,
     hasSavePage: false,
+    sessionUrlPath: "/session/",
     projects: [] // No projects for Tradescape
 };
