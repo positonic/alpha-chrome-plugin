@@ -307,6 +307,7 @@ async function populateProjectsForSelect(projSelect, workspaceId, explicitApiKey
         const option = document.createElement('option');
         option.value = project.id;
         option.textContent = project.name;
+        if (project.slug) option.dataset.slug = project.slug;
         projSelect.appendChild(option);
     });
 }
@@ -340,6 +341,7 @@ async function populateWorkspaceAndProjectDropdowns(wsSelect, projSelect, presel
             const option = document.createElement('option');
             option.value = project.id;
             option.textContent = project.name;
+            if (project.slug) option.dataset.slug = project.slug;
             projSelect.appendChild(option);
         });
     }
@@ -382,6 +384,7 @@ async function populateSharedDropdowns() {
             const option = document.createElement('option');
             option.value = project.id;
             option.textContent = project.name;
+            if (project.slug) option.dataset.slug = project.slug;
             sharedProject.appendChild(option);
         });
     }
@@ -983,6 +986,12 @@ function getActionUrl(actionId) {
     }
 
     if (wsSlug) {
+        // Try to build the full project URL
+        const projOption = sharedProject ? sharedProject.selectedOptions[0] : null;
+        const projSlug = projOption ? projOption.dataset.slug : null;
+        if (projSlug) {
+            return `${apiBaseURL}/w/${wsSlug}/projects/${projSlug}?tab=tasks&actionId=${actionId}`;
+        }
         return `${apiBaseURL}/w/${wsSlug}/actions?actionId=${actionId}`;
     }
     return `${apiBaseURL}/actions?actionId=${actionId}`;
