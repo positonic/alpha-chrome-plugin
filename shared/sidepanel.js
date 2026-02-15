@@ -1351,6 +1351,10 @@ async function startListening() {
         currentTranscription = '';
         lastSavedTranscription = '';
         selectedRecordingId = null;
+        if (recordingNameInput) {
+            recordingNameInput.value = '';
+            recordingNameInput.focus();
+        }
         renderRecordingList();
 
         // Start server session
