@@ -433,35 +433,17 @@ async function checkSetupState() {
                     return;
                 }
 
-                // Auto-auth succeeded — need project selection?
-                if (hasProjects) {
-                    projectCard.classList.remove('hidden');
-                    await populateWorkspaceAndProjectDropdowns(setupWorkspaceDropdown, projectDropdown);
-                    resolve(false);
-                    return;
-                }
-
-                // No projects needed — fully configured
+                // Auto-auth succeeded — go straight to dictation UI
                 updateSettingsDisplay(result.AUTH_METHOD || 'auto', null);
+                if (hasProjects && sharedProjectSelector) {
+                    sharedProjectSelector.classList.add('visible');
+                }
                 showDictation();
                 resolve(true);
                 return;
             }
 
-            // Already have stored auth
-            if (hasProjects && !result.SELECTED_PROJECT_ID) {
-                apiKeyCard.classList.add('hidden');
-                projectCard.classList.remove('hidden');
-                await populateWorkspaceAndProjectDropdowns(
-                    setupWorkspaceDropdown, projectDropdown, null,
-                    result.TRANSCRIPTION_API_KEY || null
-                );
-                showSetup();
-                resolve(false);
-                return;
-            }
-
-            // Fully configured
+            // Have auth — go straight to dictation UI
             updateSettingsDisplay(result.AUTH_METHOD, result.TRANSCRIPTION_API_KEY);
             if (hasProjects && sharedProjectSelector) {
                 sharedProjectSelector.classList.add('visible');
@@ -490,28 +472,19 @@ saveApiKeyBtn.onclick = async () => {
         return;
     }
 
-    if (hasProjects) {
-        apiKeyStatusEl.textContent = 'Validating key...';
-        apiKeyStatusEl.classList.remove('error');
-        const projects = await fetchProjects(apiKey);
-        if (projects.length === 0) {
-            apiKeyStatusEl.textContent = 'Invalid API key or no projects found';
-            apiKeyStatusEl.classList.add('error');
-            return;
-        }
-        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey, 'AUTH_METHOD': 'manual' }, async () => {
-            apiKeyStatusEl.textContent = '';
-            await populateWorkspaceAndProjectDropdowns(setupWorkspaceDropdown, projectDropdown, null, apiKey);
-            apiKeyCard.classList.add('hidden');
-            projectCard.classList.remove('hidden');
-        });
-    } else {
-        chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey, 'AUTH_METHOD': 'manual' }, async () => {
-            apiKeyStatusEl.textContent = '';
-            const ready = await checkSetupState();
-            if (ready) await initEngine();
-        });
+    apiKeyStatusEl.textContent = 'Validating key...';
+    apiKeyStatusEl.classList.remove('error');
+    const projects = await fetchProjects(apiKey);
+    if (projects.length === 0) {
+        apiKeyStatusEl.textContent = 'Invalid API key or no projects found';
+        apiKeyStatusEl.classList.add('error');
+        return;
     }
+    chrome.storage.local.set({ 'TRANSCRIPTION_API_KEY': apiKey, 'AUTH_METHOD': 'manual' }, async () => {
+        apiKeyStatusEl.textContent = '';
+        const ready = await checkSetupState();
+        if (ready) await initEngine();
+    });
 };
 
 projectDropdown.onchange = () => {
@@ -601,7 +574,11 @@ async function initEngine() {
 
 async function startServerSession() {
     const headers = await buildAuthHeaders();
-    const projectId = (sharedProject && sharedProject.value) || await getProjectId();
+    const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
+    if (hasProjects && !projectId) {
+        if (sharedProject) sharedProject.focus();
+        throw new Error('Please select a project first');
+    }
     const title = recordingNameInput ? recordingNameInput.value.trim() || null : null;
 
     const response = await fetch(`${apiBaseURL}/api/trpc/transcription.startSession`, {
@@ -1492,7 +1469,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             savePageBtn.textContent = 'Saving...';
             try {
                 const headers = await buildAuthHeaders();
-                const projectId = (sharedProject && sharedProject.value) || await getProjectId();
+                const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
+                if (hasProjects && !projectId) {
+                    if (sharedProject) sharedProject.focus();
+                    throw new Error('Please select a project first');
+                }
                 const context = savePageContext ? savePageContext.value : '';
                 const name = formatActionName(tab.url, tab.title, context);
                 const body = {
