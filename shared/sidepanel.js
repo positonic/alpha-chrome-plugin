@@ -688,6 +688,18 @@ async function apiPublishSelectedDraftActions(transcriptionId, actionIds) {
     return data.result?.data?.json;
 }
 
+async function apiUpdateAction(id, fields) {
+    const headers = await buildAuthHeaders();
+    const response = await fetch(`${apiBaseURL}/api/trpc/action.update`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ json: { id, ...fields } })
+    });
+    if (!response.ok) {
+        console.error('Failed to update action:', id, response.status);
+    }
+}
+
 // --- Update session title on server ---
 
 async function updateSessionTitle(sessionId, title) {
@@ -901,6 +913,32 @@ function getPriorityClass(priority) {
     return 'priority-medium';
 }
 
+const PRIORITY_OPTIONS = ['Urgent', 'High', 'Medium', 'Low', 'Quick'];
+
+function buildPrioritySelect(actionId, currentPriority) {
+    const select = document.createElement('select');
+    select.className = `action-edit-priority ${getPriorityClass(currentPriority)}`;
+    select.dataset.actionId = actionId;
+    PRIORITY_OPTIONS.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = p;
+        if (p === currentPriority) opt.selected = true;
+        select.appendChild(opt);
+    });
+    select.addEventListener('change', () => {
+        select.className = `action-edit-priority ${getPriorityClass(select.value)}`;
+        apiUpdateAction(actionId, { priority: select.value });
+    });
+    select.addEventListener('click', (e) => e.stopPropagation());
+    return select;
+}
+
+function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+
 function renderActionsModal(actions) {
     if (!actionsModalBody) return;
     actionsModalBody.innerHTML = '';
@@ -916,20 +954,65 @@ function renderActionsModal(actions) {
     actions.forEach((action) => {
         const row = document.createElement('div');
         row.className = 'action-row';
-        row.innerHTML = `
-            <input type="checkbox" checked data-action-id="${action.id}">
-            <div class="action-row-content">
-                <div class="action-row-name">${escapeHtml(action.name || 'Untitled')}</div>
-                ${action.description ? `<div class="action-row-desc">${escapeHtml(action.description)}</div>` : ''}
-            </div>
-            <span class="action-row-priority ${getPriorityClass(action.priority)}">${escapeHtml(action.priority || 'Medium')}</span>
-        `;
-        row.addEventListener('click', (e) => {
-            if (e.target.type !== 'checkbox') {
-                const cb = row.querySelector('input[type="checkbox"]');
-                cb.checked = !cb.checked;
+
+        // Checkbox
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        cb.dataset.actionId = action.id;
+
+        // Content container
+        const content = document.createElement('div');
+        content.className = 'action-row-content';
+
+        // Editable name
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.className = 'action-edit-name';
+        nameInput.value = action.name || '';
+        nameInput.dataset.actionId = action.id;
+        nameInput.dataset.original = action.name || '';
+        nameInput.addEventListener('blur', () => {
+            const val = nameInput.value.trim();
+            if (val && val !== nameInput.dataset.original) {
+                nameInput.dataset.original = val;
+                apiUpdateAction(action.id, { name: val });
             }
-            const cb = row.querySelector('input[type="checkbox"]');
+        });
+        nameInput.addEventListener('click', (e) => e.stopPropagation());
+
+        // Editable description
+        const descInput = document.createElement('textarea');
+        descInput.className = 'action-edit-desc';
+        descInput.value = action.description || '';
+        descInput.placeholder = 'Add description...';
+        descInput.rows = 1;
+        descInput.dataset.actionId = action.id;
+        descInput.dataset.original = action.description || '';
+        descInput.addEventListener('blur', () => {
+            const val = descInput.value.trim();
+            if (val !== descInput.dataset.original) {
+                descInput.dataset.original = val;
+                apiUpdateAction(action.id, { description: val || undefined });
+            }
+        });
+        descInput.addEventListener('input', () => autoResizeTextarea(descInput));
+        descInput.addEventListener('click', (e) => e.stopPropagation());
+
+        content.appendChild(nameInput);
+        content.appendChild(descInput);
+
+        // Priority select
+        const prioritySelect = buildPrioritySelect(action.id, action.priority || 'Medium');
+
+        row.appendChild(cb);
+        row.appendChild(content);
+        row.appendChild(prioritySelect);
+
+        // Row click toggles checkbox (but not when clicking editable fields)
+        row.addEventListener('click', (e) => {
+            if (e.target === cb || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+            cb.checked = !cb.checked;
             if (cb.checked) {
                 selectedActionIds.add(cb.dataset.actionId);
             } else {
@@ -937,7 +1020,20 @@ function renderActionsModal(actions) {
             }
             updateActionsModalState();
         });
+
+        cb.addEventListener('change', () => {
+            if (cb.checked) {
+                selectedActionIds.add(cb.dataset.actionId);
+            } else {
+                selectedActionIds.delete(cb.dataset.actionId);
+            }
+            updateActionsModalState();
+        });
+
         actionsModalBody.appendChild(row);
+
+        // Auto-size description after appending to DOM
+        requestAnimationFrame(() => autoResizeTextarea(descInput));
     });
 
     updateActionsModalState();
