@@ -56,6 +56,16 @@ const sessionCookieNames = EXTENSION_CONFIG.sessionCookieNames || null;
 const recordingListEl = document.getElementById('recordingList');
 const recordingHistoryEl = document.getElementById('recordingHistory');
 
+// Generate Actions modal elements
+const generateActionsBtn = document.getElementById('generateActionsBtn');
+const actionsModal = document.getElementById('actionsModal');
+const actionsModalBody = document.getElementById('actionsModalBody');
+const actionsModalClose = document.getElementById('actionsModalClose');
+const actionsModalCancel = document.getElementById('actionsModalCancel');
+const actionsModalPublish = document.getElementById('actionsModalPublish');
+const actionsSelectAll = document.getElementById('actionsSelectAll');
+let selectedActionIds = new Set();
+
 let engine = null; // The Whisper speech engine instance
 
 let isListening = false;
@@ -653,6 +663,53 @@ async function saveScreenshot(dataUrl) {
     }
 }
 
+// --- Generate Actions API calls ---
+
+async function apiGenerateDraftActions(transcriptionId) {
+    const headers = await buildAuthHeaders();
+    const response = await fetch(`${apiBaseURL}/api/trpc/transcription.generateDraftActions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ json: { transcriptionId } })
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error?.json?.message || `Server returned ${response.status}`);
+    }
+    const data = await response.json();
+    return data.result?.data?.json;
+}
+
+async function apiGetDraftActions(transcriptionId) {
+    const headers = await buildAuthHeaders();
+    const input = encodeURIComponent(JSON.stringify({ json: { transcriptionId } }));
+    const response = await fetch(`${apiBaseURL}/api/trpc/action.getDraftByTranscription?input=${input}`, {
+        method: 'GET',
+        headers
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error?.json?.message || `Server returned ${response.status}`);
+    }
+    const data = await response.json();
+    return data.result?.data?.json || [];
+}
+
+async function apiPublishSelectedDraftActions(transcriptionId, actionIds) {
+    const headers = await buildAuthHeaders();
+    const response = await fetch(`${apiBaseURL}/api/trpc/transcription.publishSelectedDraftActions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ json: { transcriptionId, actionIds } })
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error?.json?.message || `Server returned ${response.status}`);
+    }
+    const data = await response.json();
+    return data.result?.data?.json;
+}
+
 // --- Update session title on server ---
 
 async function updateSessionTitle(sessionId, title) {
@@ -790,6 +847,7 @@ function selectRecording(sessionId) {
         sessionUrl.style.display = 'none';
     }
 
+    showGenerateActionsButton();
     renderRecordingList();
 }
 
@@ -830,6 +888,197 @@ output.addEventListener('blur', () => {
     // Update on server (full text replacement)
     updateTranscriptionText(selectedRecordingId, editedText);
 });
+
+// --- Generate Actions modal logic ---
+
+function getPriorityClass(priority) {
+    if (!priority) return 'priority-medium';
+    const p = priority.toLowerCase();
+    if (p === 'urgent') return 'priority-urgent';
+    if (p === 'high') return 'priority-high';
+    if (p === 'medium') return 'priority-medium';
+    if (p === 'low') return 'priority-low';
+    if (p === 'quick') return 'priority-quick';
+    return 'priority-medium';
+}
+
+function renderActionsModal(actions) {
+    if (!actionsModalBody) return;
+    actionsModalBody.innerHTML = '';
+
+    if (!actions || actions.length === 0) {
+        actionsModalBody.innerHTML = '<div class="actions-modal-empty">No actions were generated from this recording.</div>';
+        actionsModalPublish.disabled = true;
+        return;
+    }
+
+    selectedActionIds = new Set(actions.map(a => a.id));
+
+    actions.forEach((action) => {
+        const row = document.createElement('div');
+        row.className = 'action-row';
+        row.innerHTML = `
+            <input type="checkbox" checked data-action-id="${action.id}">
+            <div class="action-row-content">
+                <div class="action-row-name">${escapeHtml(action.name || 'Untitled')}</div>
+                ${action.description ? `<div class="action-row-desc">${escapeHtml(action.description)}</div>` : ''}
+            </div>
+            <span class="action-row-priority ${getPriorityClass(action.priority)}">${escapeHtml(action.priority || 'Medium')}</span>
+        `;
+        row.addEventListener('click', (e) => {
+            if (e.target.type !== 'checkbox') {
+                const cb = row.querySelector('input[type="checkbox"]');
+                cb.checked = !cb.checked;
+            }
+            const cb = row.querySelector('input[type="checkbox"]');
+            if (cb.checked) {
+                selectedActionIds.add(cb.dataset.actionId);
+            } else {
+                selectedActionIds.delete(cb.dataset.actionId);
+            }
+            updateActionsModalState();
+        });
+        actionsModalBody.appendChild(row);
+    });
+
+    updateActionsModalState();
+}
+
+function updateActionsModalState() {
+    const checkboxes = actionsModalBody.querySelectorAll('input[type="checkbox"]');
+    const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
+    if (actionsSelectAll) actionsSelectAll.checked = allChecked;
+
+    const count = selectedActionIds.size;
+    actionsModalPublish.disabled = count === 0;
+    actionsModalPublish.textContent = count === 0
+        ? 'Create Actions'
+        : `Create ${count} Action${count === 1 ? '' : 's'}`;
+}
+
+function openActionsModal() {
+    if (actionsModal) actionsModal.classList.remove('hidden');
+}
+
+function closeActionsModal() {
+    if (actionsModal) actionsModal.classList.add('hidden');
+    if (actionsModalBody) actionsModalBody.innerHTML = '';
+    selectedActionIds = new Set();
+    // Reset button states
+    if (actionsModalPublish) {
+        actionsModalPublish.style.display = '';
+        actionsModalPublish.disabled = false;
+        actionsModalPublish.textContent = 'Create Actions';
+    }
+    if (actionsModalCancel) {
+        actionsModalCancel.textContent = 'Cancel';
+        actionsModalCancel.disabled = false;
+    }
+}
+
+function showGenerateActionsButton() {
+    if (!generateActionsBtn || !currentSessionId) return;
+    chrome.storage.local.get(['AUTH_JWT'], (result) => {
+        if (result.AUTH_JWT) {
+            generateActionsBtn.classList.remove('hidden');
+        }
+    });
+}
+
+function hideGenerateActionsButton() {
+    if (generateActionsBtn) generateActionsBtn.classList.add('hidden');
+}
+
+async function handleGenerateActions() {
+    if (!currentSessionId) return;
+
+    openActionsModal();
+    actionsModalBody.innerHTML = '<div class="actions-modal-loading">Generating actions...</div>';
+    actionsModalPublish.disabled = true;
+    generateActionsBtn.disabled = true;
+    generateActionsBtn.textContent = 'Generating...';
+    generateActionsBtn.classList.add('loading');
+
+    try {
+        await refreshAuthIfNeeded();
+        const result = await apiGenerateDraftActions(currentSessionId);
+
+        if (!result || !result.success) {
+            throw new Error(result?.errors?.join(', ') || 'Generation failed');
+        }
+
+        if (result.alreadyPublished) {
+            actionsModalBody.innerHTML = '<div class="actions-modal-empty">Actions have already been published for this recording.</div>';
+            actionsModalPublish.disabled = true;
+            return;
+        }
+
+        // Fetch the full draft action objects
+        const drafts = await apiGetDraftActions(currentSessionId);
+        renderActionsModal(drafts);
+
+    } catch (error) {
+        console.error('Error generating actions:', error);
+        actionsModalBody.innerHTML = `<div class="actions-modal-error">Failed to generate actions: ${escapeHtml(error.message)}</div>`;
+        actionsModalPublish.disabled = true;
+    } finally {
+        generateActionsBtn.disabled = false;
+        generateActionsBtn.textContent = 'Generate Actions';
+        generateActionsBtn.classList.remove('loading');
+    }
+}
+
+async function handlePublishActions() {
+    const actionIds = Array.from(selectedActionIds);
+    if (actionIds.length === 0 || !currentSessionId) return;
+
+    actionsModalPublish.disabled = true;
+    actionsModalPublish.textContent = 'Creating...';
+    actionsModalCancel.disabled = true;
+
+    try {
+        await refreshAuthIfNeeded();
+        const result = await apiPublishSelectedDraftActions(currentSessionId, actionIds);
+
+        actionsModalBody.innerHTML = `<div class="actions-modal-empty" style="color: #059669;">
+            ${result.publishedCount} action${result.publishedCount === 1 ? '' : 's'} created successfully!
+        </div>`;
+        actionsModalPublish.style.display = 'none';
+        actionsModalCancel.textContent = 'Done';
+        actionsModalCancel.disabled = false;
+
+        setTimeout(closeActionsModal, 2000);
+    } catch (error) {
+        console.error('Error publishing actions:', error);
+        actionsModalBody.innerHTML = `<div class="actions-modal-error">Failed to create actions: ${escapeHtml(error.message)}</div>`;
+        actionsModalCancel.disabled = false;
+    }
+}
+
+// Generate Actions event handlers
+if (generateActionsBtn) generateActionsBtn.addEventListener('click', handleGenerateActions);
+if (actionsModalClose) actionsModalClose.addEventListener('click', closeActionsModal);
+if (actionsModalCancel) actionsModalCancel.addEventListener('click', closeActionsModal);
+if (actionsModalPublish) actionsModalPublish.addEventListener('click', handlePublishActions);
+if (actionsSelectAll) {
+    actionsSelectAll.addEventListener('change', () => {
+        const checkboxes = actionsModalBody.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            cb.checked = actionsSelectAll.checked;
+            if (actionsSelectAll.checked) {
+                selectedActionIds.add(cb.dataset.actionId);
+            } else {
+                selectedActionIds.delete(cb.dataset.actionId);
+            }
+        });
+        updateActionsModalState();
+    });
+}
+if (actionsModal) {
+    actionsModal.addEventListener('click', (e) => {
+        if (e.target === actionsModal) closeActionsModal();
+    });
+}
 
 // --- Screenshot handling ---
 
@@ -1075,6 +1324,7 @@ function wireEngine(eng) {
             toggleButton.className = 'btn-primary';
             statusEl.className = '';
             if (currentSessionId) sessionUrl.style.display = 'inline';
+            showGenerateActionsButton();
         }
     };
 
@@ -1120,6 +1370,7 @@ async function startListening() {
         // Clear output and hide session link
         setOutputContent('');
         sessionUrl.style.display = 'none';
+        hideGenerateActionsButton();
         currentTranscription = '';
         lastSavedTranscription = '';
         selectedRecordingId = null;
@@ -1159,6 +1410,7 @@ async function stopListening() {
     toggleButton.textContent = 'Start Recording';
     toggleButton.className = 'btn-primary';
     if (currentSessionId) sessionUrl.style.display = 'inline';
+    showGenerateActionsButton();
 
     // Save to recording history
     if (currentSessionId) {
