@@ -739,6 +739,56 @@ async function apiGetActionsByTranscription(transcriptionId) {
     return data.result?.data?.json || [];
 }
 
+async function apiLinkActionsToTranscription(actionIds, transcriptionSessionId) {
+    const headers = await buildAuthHeaders();
+    const response = await fetch(`${apiBaseURL}/api/trpc/action.linkActionsToTranscription`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ json: { actionIds, transcriptionSessionId } })
+    });
+    if (!response.ok) {
+        console.error('Failed to link actions to transcription:', response.status);
+    }
+}
+
+async function createActionForRecording(name, sessionId) {
+    await refreshAuthIfNeeded();
+    const headers = await buildAuthHeaders();
+    const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
+
+    const body = {
+        json: {
+            name,
+            priority: 'Quick',
+            source: 'chrome-extension',
+            parseNaturalLanguage: true,
+        }
+    };
+    if (projectId && projectId !== 'default') {
+        body.json.projectId = projectId;
+    }
+
+    const response = await fetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to create action: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const actionId = result?.result?.data?.json?.action?.id;
+
+    if (actionId) {
+        await apiLinkActionsToTranscription([actionId], sessionId);
+    }
+
+    delete recordingActionsCache[sessionId];
+    await loadRecordingActions(sessionId);
+}
+
 // --- Update session title on server ---
 
 async function updateSessionTitle(sessionId, title) {
@@ -906,7 +956,7 @@ async function loadRecordingActions(sessionId) {
 
     // Use cache if available
     if (recordingActionsCache[sessionId]) {
-        renderRecordingActions(drawer, recordingActionsCache[sessionId]);
+        renderRecordingActions(drawer, recordingActionsCache[sessionId], sessionId);
         return;
     }
 
@@ -916,7 +966,7 @@ async function loadRecordingActions(sessionId) {
         await refreshAuthIfNeeded();
         const actions = await apiGetActionsByTranscription(sessionId);
         recordingActionsCache[sessionId] = actions;
-        renderRecordingActions(drawer, actions);
+        renderRecordingActions(drawer, actions, sessionId);
     } catch (error) {
         console.error('Error loading actions for recording:', sessionId, error);
         drawer.innerHTML = '<div class="recording-actions-empty">Could not load actions</div>';
@@ -938,45 +988,119 @@ function getActionUrl(actionId) {
     return `${apiBaseURL}/actions?actionId=${actionId}`;
 }
 
-function renderRecordingActions(drawer, actions) {
+function renderRecordingActions(drawer, actions, sessionId) {
+    drawer.innerHTML = '';
+
     if (!actions || actions.length === 0) {
-        drawer.innerHTML = '<div class="recording-actions-empty">No actions for this recording</div>';
-        return;
+        const empty = document.createElement('div');
+        empty.className = 'recording-actions-empty';
+        empty.textContent = 'No actions for this recording';
+        drawer.appendChild(empty);
+    } else {
+        const list = document.createElement('div');
+        list.className = 'recording-actions-list';
+
+        actions.forEach((action) => {
+            const link = document.createElement('a');
+            link.className = 'recording-action-link';
+            link.href = getActionUrl(action.id);
+            link.target = '_blank';
+            link.title = action.description || action.name || '';
+
+            link.innerHTML = `<svg class="recording-action-link-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1" y="1" width="14" height="14" rx="3"/>
+                <path d="M4.5 8.5L7 11L11.5 5.5"/>
+            </svg>`;
+
+            const name = document.createElement('span');
+            name.className = 'recording-action-link-name';
+            name.textContent = action.name || 'Untitled Action';
+            link.appendChild(name);
+
+            if (action.priority) {
+                const priority = document.createElement('span');
+                priority.className = 'recording-action-link-priority ' + getPriorityClass(action.priority);
+                priority.textContent = action.priority;
+                link.appendChild(priority);
+            }
+
+            list.appendChild(link);
+        });
+
+        drawer.appendChild(list);
     }
 
-    const list = document.createElement('div');
-    list.className = 'recording-actions-list';
+    // Add action button/form area
+    const addArea = document.createElement('div');
+    addArea.style.padding = '4px 0 2px 0';
+    addArea.addEventListener('click', (e) => e.stopPropagation());
+    appendAddActionButton(addArea, sessionId);
+    drawer.appendChild(addArea);
+}
 
-    actions.forEach((action) => {
-        const link = document.createElement('a');
-        link.className = 'recording-action-link';
-        link.href = getActionUrl(action.id);
-        link.target = '_blank';
-        link.title = action.description || action.name || '';
+function appendAddActionButton(container, sessionId) {
+    container.innerHTML = '';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'recording-add-action-btn';
+    addBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg> Add action`;
+    addBtn.addEventListener('click', () => showInlineAddForm(container, sessionId));
+    container.appendChild(addBtn);
+}
 
-        // Checkbox icon SVG
-        link.innerHTML = `<svg class="recording-action-link-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="1" y="1" width="14" height="14" rx="3"/>
-            <path d="M4.5 8.5L7 11L11.5 5.5"/>
-        </svg>`;
+function showInlineAddForm(container, sessionId) {
+    container.innerHTML = '';
 
-        const name = document.createElement('span');
-        name.className = 'recording-action-link-name';
-        name.textContent = action.name || 'Untitled Action';
-        link.appendChild(name);
+    const form = document.createElement('div');
+    form.className = 'recording-add-action-form';
 
-        if (action.priority) {
-            const priority = document.createElement('span');
-            priority.className = 'recording-action-link-priority ' + getPriorityClass(action.priority);
-            priority.textContent = action.priority;
-            link.appendChild(priority);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'recording-add-action-input';
+    input.placeholder = 'Action name...';
+
+    const submitBtn = document.createElement('button');
+    submitBtn.className = 'recording-add-action-submit';
+    submitBtn.textContent = 'Add';
+
+    form.appendChild(input);
+    form.appendChild(submitBtn);
+    container.appendChild(form);
+
+    setTimeout(() => input.focus(), 0);
+
+    async function handleSubmit() {
+        const name = input.value.trim();
+        if (!name) return;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = '...';
+        input.disabled = true;
+
+        try {
+            await createActionForRecording(name, sessionId);
+        } catch (error) {
+            console.error('Error creating action:', error);
+            submitBtn.textContent = 'Retry';
+            submitBtn.disabled = false;
+            input.disabled = false;
         }
+    }
 
-        list.appendChild(link);
+    submitBtn.addEventListener('click', handleSubmit);
+
+    input.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') handleSubmit();
+        else if (e.key === 'Escape') appendAddActionButton(container, sessionId);
     });
 
-    drawer.innerHTML = '';
-    drawer.appendChild(list);
+    input.addEventListener('blur', () => {
+        setTimeout(() => {
+            if (!input.disabled && !input.value.trim()) {
+                appendAddActionButton(container, sessionId);
+            }
+        }, 200);
+    });
 }
 
 function selectRecording(sessionId) {
@@ -1292,6 +1416,24 @@ async function handlePublishActions() {
 
     try {
         await refreshAuthIfNeeded();
+
+        // Append recording link to each selected draft's description
+        const sessionUrlPath = EXTENSION_CONFIG.sessionUrlPath || '/redirect-recording-to-workspace/';
+        const recordingLink = `${apiBaseURL}${sessionUrlPath}${currentSessionId}`;
+        const suffix = `- this was created as a part of this <a href="${recordingLink}">recording</a>`;
+
+        const descTextareas = actionsModalBody.querySelectorAll('textarea.action-edit-desc');
+        const updatePromises = [];
+        descTextareas.forEach(textarea => {
+            const actionId = textarea.dataset.actionId;
+            if (selectedActionIds.has(actionId)) {
+                const current = textarea.value.trim();
+                const newDesc = current ? `${current}\n\n${suffix}` : suffix;
+                updatePromises.push(apiUpdateAction(actionId, { description: newDesc }));
+            }
+        });
+        await Promise.all(updatePromises);
+
         const result = await apiPublishSelectedDraftActions(currentSessionId, actionIds);
 
         actionsModalBody.innerHTML = `<div class="actions-modal-empty" style="color: #059669;">
@@ -1442,7 +1584,7 @@ const toolFreehandBtn = document.getElementById('toolFreehand');
 const clearBtn = document.getElementById('clearAnnotations');
 
 async function getActiveNormalTab() {
-    const tabs = await chrome.tabs.query({ active: true, windowType: 'normal' });
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     return tabs[0] || null;
 }
 

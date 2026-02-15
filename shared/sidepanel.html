@@ -629,6 +629,77 @@
         padding: 6px 10px;
         text-align: center;
       }
+      .recording-add-action-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        background: transparent;
+        border: 1px dashed #d1d5db;
+        border-radius: 6px;
+        color: #9ca3af;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        width: 100%;
+        margin: 0;
+        box-shadow: none;
+        font-weight: 500;
+      }
+      .recording-add-action-btn:hover {
+        background: #f9fafb;
+        border-color: #9ca3af;
+        color: #6b7280;
+        transform: none;
+      }
+      .recording-add-action-form {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .recording-add-action-input {
+        flex: 1;
+        padding: 6px 10px;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: inherit;
+        background: white;
+        color: #374151;
+        outline: none;
+        transition: border-color 0.15s ease;
+        min-width: 0;
+      }
+      .recording-add-action-input:focus {
+        border-color: #2D68E5;
+        box-shadow: 0 0 0 2px rgba(45, 104, 229, 0.1);
+      }
+      .recording-add-action-input::placeholder {
+        color: #9ca3af;
+      }
+      .recording-add-action-submit {
+        padding: 5px 10px;
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        flex-shrink: 0;
+        width: auto;
+        margin: 0;
+        box-shadow: none;
+        transition: all 0.15s ease;
+      }
+      .recording-add-action-submit:hover {
+        background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%);
+        transform: none;
+      }
+      .recording-add-action-submit:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
 
       /* Generate Actions button */
       .btn-generate-actions {
