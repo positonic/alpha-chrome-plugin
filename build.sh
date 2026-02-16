@@ -64,7 +64,9 @@ const EXTENSION_CONFIG = {
     apiBaseURL: "http://localhost:3000",
     hasProjects: false,
     hasSavePage: false,
-    projects: [] // No projects for Tradescape
+    cookieDomain: "http://localhost:3000",
+    sessionCookieNames: ["authjs.session-token"],
+    projects: []
 };
 EOF
 sed -i '' 's/"action": {/"action": {\n      "default_title": "Tradescape (TEST - localhost)",/' dist/tradescape-test/manifest.json
@@ -100,7 +102,9 @@ const EXTENSION_CONFIG = {
     apiBaseURL: "https://tradetronic.vercel.app",
     hasProjects: false,
     hasSavePage: false,
-    projects: [] // No projects for Tradescape
+    cookieDomain: "https://tradetronic.vercel.app",
+    sessionCookieNames: ["__Secure-authjs.session-token", "authjs.session-token"],
+    projects: []
 };
 EOF
     sed -i '' 's/"action": {/"action": {\n      "default_title": "Tradescape (PROD - tradetronic)",/' dist/tradescape-prod/manifest.json
