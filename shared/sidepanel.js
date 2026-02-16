@@ -244,6 +244,21 @@ async function refreshAuthIfNeeded() {
     });
 }
 
+async function authenticatedFetch(url, options = {}) {
+    const headers = await buildAuthHeaders();
+    const response = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
+    if (response.status === 401) {
+        // Clear stale JWT and retry via cookie auto-auth
+        await chrome.storage.local.remove(['AUTH_JWT', 'AUTH_JWT_EXPIRES']);
+        const refreshed = await tryAutoAuth();
+        if (refreshed) {
+            const newHeaders = await buildAuthHeaders();
+            return fetch(url, { ...options, headers: { ...newHeaders, ...options.headers } });
+        }
+    }
+    return response;
+}
+
 // --- Save Page helpers ---
 
 function escapeHtml(str) {
@@ -278,10 +293,8 @@ function formatActionName(url, title, context) {
 // See the spec comment below this function for what we need.
 async function fetchWorkspaces() {
     try {
-        const headers = await buildAuthHeaders();
-        const response = await fetch(`${apiBaseURL}/api/trpc/workspace.getUserWorkspaces`, {
+        const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/workspace.getUserWorkspaces`, {
             method: 'GET',
-            headers
         });
         if (!response.ok) throw new Error(`API returned ${response.status}`);
         const data = await response.json();
@@ -296,11 +309,10 @@ async function fetchWorkspaces() {
 
 async function fetchProjectsForWorkspace(workspaceId) {
     try {
-        const headers = await buildAuthHeaders();
         const url = workspaceId
             ? `${apiBaseURL}/api/trpc/project.getUserProjects?input=${encodeURIComponent(JSON.stringify({ json: { workspaceId } }))}`
             : `${apiBaseURL}/api/trpc/project.getUserProjects`;
-        const response = await fetch(url, { method: 'GET', headers });
+        const response = await authenticatedFetch(url, { method: 'GET' });
         if (!response.ok) throw new Error(`API returned ${response.status}`);
         const data = await response.json();
         return data.result.data.json.projects;
@@ -412,16 +424,17 @@ async function populateSharedDropdowns() {
 
 async function fetchProjects(explicitApiKey) {
     try {
-        let headers;
+        let response;
         if (explicitApiKey) {
-            headers = { 'Content-Type': 'application/json', 'x-api-key': explicitApiKey };
+            response = await fetch(`${apiBaseURL}/api/trpc/project.getUserProjects`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': explicitApiKey }
+            });
         } else {
-            headers = await buildAuthHeaders();
+            response = await authenticatedFetch(`${apiBaseURL}/api/trpc/project.getUserProjects`, {
+                method: 'GET',
+            });
         }
-        const response = await fetch(`${apiBaseURL}/api/trpc/project.getUserProjects`, {
-            method: 'GET',
-            headers
-        });
         if (!response.ok) throw new Error(`API returned ${response.status}`);
         const data = await response.json();
         return data.result.data.json.projects;
@@ -618,7 +631,6 @@ async function initEngine() {
 // --- Server communication (unchanged from dictation.js) ---
 
 async function startServerSession() {
-    const headers = await buildAuthHeaders();
     const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
     if (hasProjects && !projectId) {
         if (sharedProject) sharedProject.focus();
@@ -626,9 +638,8 @@ async function startServerSession() {
     }
     const title = recordingNameInput ? recordingNameInput.value.trim() || null : null;
 
-    const response = await fetch(`${apiBaseURL}/api/trpc/transcription.startSession`, {
+    const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/transcription.startSession`, {
         method: 'POST',
-        headers,
         body: JSON.stringify({ json: { projectId, title } })
     });
 
@@ -650,10 +661,8 @@ async function startServerSession() {
 
 async function saveTranscription(id, transcriptionText) {
     try {
-        const headers = await buildAuthHeaders();
-        const response = await fetch(`${apiBaseURL}/api/trpc/transcription.saveTranscription`, {
+        const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/transcription.saveTranscription`, {
             method: 'POST',
-            headers,
             body: JSON.stringify({ json: { id, transcription: transcriptionText } })
         });
         const data = await response.json();
@@ -670,11 +679,9 @@ async function saveTranscription(id, transcriptionText) {
 
 async function saveScreenshot(dataUrl) {
     try {
-        const headers = await buildAuthHeaders();
         const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
-        const response = await fetch(`${apiBaseURL}/api/trpc/transcription.saveScreenshot`, {
+        const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/transcription.saveScreenshot`, {
             method: 'POST',
-            headers,
             body: JSON.stringify({ json: { sessionId: currentSessionId, screenshot: base64Data, timestamp: getNow() } })
         });
         const data = await response.json();
@@ -688,10 +695,8 @@ async function saveScreenshot(dataUrl) {
 // --- Generate Actions API calls ---
 
 async function apiGenerateDraftActions(transcriptionId) {
-    const headers = await buildAuthHeaders();
-    const response = await fetch(`${apiBaseURL}/api/trpc/transcription.generateDraftActions`, {
+    const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/transcription.generateDraftActions`, {
         method: 'POST',
-        headers,
         body: JSON.stringify({ json: { transcriptionId } })
     });
     if (!response.ok) {
@@ -703,11 +708,9 @@ async function apiGenerateDraftActions(transcriptionId) {
 }
 
 async function apiGetDraftActions(transcriptionId) {
-    const headers = await buildAuthHeaders();
     const input = encodeURIComponent(JSON.stringify({ json: { transcriptionId } }));
-    const response = await fetch(`${apiBaseURL}/api/trpc/action.getDraftByTranscription?input=${input}`, {
+    const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/action.getDraftByTranscription?input=${input}`, {
         method: 'GET',
-        headers
     });
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -718,10 +721,8 @@ async function apiGetDraftActions(transcriptionId) {
 }
 
 async function apiPublishSelectedDraftActions(transcriptionId, actionIds) {
-    const headers = await buildAuthHeaders();
-    const response = await fetch(`${apiBaseURL}/api/trpc/transcription.publishSelectedDraftActions`, {
+    const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/transcription.publishSelectedDraftActions`, {
         method: 'POST',
-        headers,
         body: JSON.stringify({ json: { transcriptionId, actionIds } })
     });
     if (!response.ok) {
@@ -733,10 +734,8 @@ async function apiPublishSelectedDraftActions(transcriptionId, actionIds) {
 }
 
 async function apiUpdateAction(id, fields) {
-    const headers = await buildAuthHeaders();
-    const response = await fetch(`${apiBaseURL}/api/trpc/action.update`, {
+    const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/action.update`, {
         method: 'POST',
-        headers,
         body: JSON.stringify({ json: { id, ...fields } })
     });
     if (!response.ok) {
@@ -745,11 +744,9 @@ async function apiUpdateAction(id, fields) {
 }
 
 async function apiGetActionsByTranscription(transcriptionId) {
-    const headers = await buildAuthHeaders();
     const input = encodeURIComponent(JSON.stringify({ json: { transcriptionId } }));
-    const response = await fetch(`${apiBaseURL}/api/trpc/action.getByTranscription?input=${input}`, {
+    const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/action.getByTranscription?input=${input}`, {
         method: 'GET',
-        headers
     });
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -760,10 +757,8 @@ async function apiGetActionsByTranscription(transcriptionId) {
 }
 
 async function apiLinkActionsToTranscription(actionIds, transcriptionSessionId) {
-    const headers = await buildAuthHeaders();
-    const response = await fetch(`${apiBaseURL}/api/trpc/action.linkActionsToTranscription`, {
+    const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/action.linkActionsToTranscription`, {
         method: 'POST',
-        headers,
         body: JSON.stringify({ json: { actionIds, transcriptionSessionId } })
     });
     if (!response.ok) {
@@ -772,8 +767,6 @@ async function apiLinkActionsToTranscription(actionIds, transcriptionSessionId) 
 }
 
 async function createActionForRecording(name, sessionId) {
-    await refreshAuthIfNeeded();
-    const headers = await buildAuthHeaders();
     const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
 
     const body = {
@@ -788,9 +781,8 @@ async function createActionForRecording(name, sessionId) {
         body.json.projectId = projectId;
     }
 
-    const response = await fetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
+    const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
         method: 'POST',
-        headers,
         body: JSON.stringify(body)
     });
 
@@ -813,10 +805,8 @@ async function createActionForRecording(name, sessionId) {
 
 async function updateSessionTitle(sessionId, title) {
     try {
-        const headers = await buildAuthHeaders();
-        const response = await fetch(`${apiBaseURL}/api/trpc/transcription.updateTitle`, {
+        const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/transcription.updateTitle`, {
             method: 'POST',
-            headers,
             body: JSON.stringify({ json: { id: sessionId, title } })
         });
         return response.ok;
@@ -830,10 +820,8 @@ async function updateSessionTitle(sessionId, title) {
 
 async function updateTranscriptionText(sessionId, transcription) {
     try {
-        const headers = await buildAuthHeaders();
-        const response = await fetch(`${apiBaseURL}/api/trpc/transcription.updateTranscription`, {
+        const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/transcription.updateTranscription`, {
             method: 'POST',
-            headers,
             body: JSON.stringify({ json: { id: sessionId, transcription } })
         });
         return response.ok;
@@ -1972,7 +1960,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             savePageBtn.disabled = true;
             savePageBtn.textContent = 'Saving...';
             try {
-                const headers = await buildAuthHeaders();
                 const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
                 if (hasProjects && !projectId) {
                     if (sharedProject) sharedProject.focus();
@@ -1991,9 +1978,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (projectId && projectId !== 'default') {
                     body.json.projectId = projectId;
                 }
-                const response = await fetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
+                const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
                     method: 'POST',
-                    headers,
                     body: JSON.stringify(body)
                 });
                 if (response.ok) {
@@ -2053,8 +2039,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             createActionBtn.disabled = true;
             createActionBtn.textContent = 'Creating...';
             try {
-                await refreshAuthIfNeeded();
-                const headers = await buildAuthHeaders();
                 const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
                 if (hasProjects && !projectId) {
                     if (sharedProject) sharedProject.focus();
@@ -2074,9 +2058,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (projectId && projectId !== 'default') {
                     body.json.projectId = projectId;
                 }
-                const response = await fetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
+                const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/action.quickCreate`, {
                     method: 'POST',
-                    headers,
                     body: JSON.stringify(body)
                 });
                 if (response.ok) {
@@ -2133,9 +2116,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             addContactBtn.textContent = 'Creating...';
 
             try {
-                await refreshAuthIfNeeded();
-                const headers = await buildAuthHeaders();
-
                 const workspaceId = sharedWorkspace ? sharedWorkspace.value : '';
                 if (!workspaceId) {
                     throw new Error('Please select a workspace first');
@@ -2157,9 +2137,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (linkedIn) contactData.linkedIn = linkedIn;
                 if (tags.length > 0) contactData.tags = tags;
 
-                const response = await fetch(`${apiBaseURL}/api/trpc/crmContact.create`, {
+                const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/crmContact.create`, {
                     method: 'POST',
-                    headers,
                     body: JSON.stringify({ json: contactData })
                 });
 
