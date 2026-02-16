@@ -1806,23 +1806,25 @@ function wireEngine(eng) {
 
 // --- Start/Stop ---
 
+async function ensureMicPermission() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+        chrome.storage.local.set({ MIC_PERMISSION_GRANTED: true });
+        return true;
+    } catch (e) {
+        // Permission denied or dismissed — clear stale flag and open permissions page
+        chrome.storage.local.remove('MIC_PERMISSION_GRANTED');
+        chrome.tabs.create({ url: chrome.runtime.getURL('permissions.html') });
+        statusEl.textContent = 'Please grant microphone permission in the new tab';
+        return false;
+    }
+}
+
 async function startListening() {
     try {
-        // Check mic permission first
-        const permResult = await chrome.storage.local.get('MIC_PERMISSION_GRANTED');
-        if (!permResult.MIC_PERMISSION_GRANTED) {
-            // Try to get permission directly
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                stream.getTracks().forEach(t => t.stop());
-                chrome.storage.local.set({ MIC_PERMISSION_GRANTED: true });
-            } catch (e) {
-                // Open permissions page
-                chrome.tabs.create({ url: chrome.runtime.getURL('permissions.html') });
-                statusEl.textContent = 'Please grant microphone permission in the new tab';
-                return;
-            }
-        }
+        // Always verify mic permission with a real getUserMedia check
+        if (!await ensureMicPermission()) return;
 
         if (selectedRecordingId) {
             // CONTINUE mode — reuse existing session, keep state
