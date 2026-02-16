@@ -54,11 +54,24 @@ const createActionPriority = document.getElementById('createActionPriority');
 const createActionBtn = document.getElementById('createActionBtn');
 const createActionStatus = document.getElementById('createActionStatus');
 
+// Add Contact tab elements
+const tabAddContactBtn = document.getElementById('tabAddContact');
+const panelAddContact = document.getElementById('panelAddContact');
+const addContactFirstName = document.getElementById('addContactFirstName');
+const addContactLastName = document.getElementById('addContactLastName');
+const addContactEmail = document.getElementById('addContactEmail');
+const addContactPhone = document.getElementById('addContactPhone');
+const addContactLinkedIn = document.getElementById('addContactLinkedIn');
+const addContactTags = document.getElementById('addContactTags');
+const addContactBtn = document.getElementById('addContactBtn');
+const addContactStatus = document.getElementById('addContactStatus');
+
 const autoAuthCard = document.getElementById('autoAuthCard');
 
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
 const hasProjects = EXTENSION_CONFIG.hasProjects;
 const hasSavePage = EXTENSION_CONFIG.hasSavePage || false;
+const hasCrmContacts = EXTENSION_CONFIG.hasCrmContacts || false;
 const cookieDomain = EXTENSION_CONFIG.cookieDomain || null;
 const sessionCookieNames = EXTENSION_CONFIG.sessionCookieNames || null;
 
@@ -1902,8 +1915,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Initialize panel tabs based on config
-    const allTabs = [tabSavePageBtn, tabCreateActionBtn, tabRecordingBtn].filter(Boolean);
-    const allPanels = [panelSavePage, panelCreateAction, panelRecording].filter(Boolean);
+    const allTabs = [tabSavePageBtn, tabCreateActionBtn, tabAddContactBtn, tabRecordingBtn].filter(Boolean);
+    const allPanels = [panelSavePage, panelCreateAction, panelAddContact, panelRecording].filter(Boolean);
 
     function switchTab(activeTab, activePanel) {
         allTabs.forEach(t => t.classList.remove('active'));
@@ -1920,12 +1933,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         switchTab(tabRecordingBtn, panelRecording);
     }
 
+    // Hide Add Contact tab if not configured
+    if (tabAddContactBtn) {
+        tabAddContactBtn.style.display = hasCrmContacts ? '' : 'none';
+    }
+
     // Tab switching
     if (tabSavePageBtn) {
         tabSavePageBtn.addEventListener('click', () => switchTab(tabSavePageBtn, panelSavePage));
     }
     if (tabCreateActionBtn) {
         tabCreateActionBtn.addEventListener('click', () => switchTab(tabCreateActionBtn, panelCreateAction));
+    }
+    if (tabAddContactBtn) {
+        tabAddContactBtn.addEventListener('click', () => switchTab(tabAddContactBtn, panelAddContact));
     }
     if (tabRecordingBtn) {
         tabRecordingBtn.addEventListener('click', () => switchTab(tabRecordingBtn, panelRecording));
@@ -2083,6 +2104,118 @@ document.addEventListener('DOMContentLoaded', async () => {
             setTimeout(() => {
                 createActionBtn.disabled = false;
                 createActionBtn.textContent = 'Create Action';
+            }, 2000);
+        });
+    }
+
+    // Add Contact button
+    if (addContactBtn) {
+        addContactBtn.addEventListener('click', async () => {
+            if (addContactStatus) {
+                addContactStatus.textContent = '';
+                addContactStatus.className = 'save-page-status';
+            }
+
+            const firstName = addContactFirstName ? addContactFirstName.value.trim() : '';
+            const lastName = addContactLastName ? addContactLastName.value.trim() : '';
+
+            if (!firstName && !lastName) {
+                if (addContactStatus) {
+                    addContactStatus.textContent = 'Please enter at least a first or last name';
+                    addContactStatus.className = 'save-page-status error';
+                }
+                return;
+            }
+
+            addContactBtn.disabled = true;
+            addContactBtn.textContent = 'Creating...';
+
+            try {
+                await refreshAuthIfNeeded();
+                const headers = await buildAuthHeaders();
+
+                const workspaceId = sharedWorkspace ? sharedWorkspace.value : '';
+                if (!workspaceId) {
+                    throw new Error('Please select a workspace first');
+                }
+
+                const email = addContactEmail ? addContactEmail.value.trim() : '';
+                const phone = addContactPhone ? addContactPhone.value.trim() : '';
+                const linkedIn = addContactLinkedIn ? addContactLinkedIn.value.trim() : '';
+                const tagsRaw = addContactTags ? addContactTags.value.trim() : '';
+                const tags = tagsRaw
+                    ? tagsRaw.split(',').map(t => t.trim()).filter(t => t.length > 0)
+                    : [];
+
+                const contactData = { workspaceId };
+                if (firstName) contactData.firstName = firstName;
+                if (lastName) contactData.lastName = lastName;
+                if (email) contactData.email = email;
+                if (phone) contactData.phone = phone;
+                if (linkedIn) contactData.linkedIn = linkedIn;
+                if (tags.length > 0) contactData.tags = tags;
+
+                const response = await fetch(`${apiBaseURL}/api/trpc/crmContact.create`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ json: contactData })
+                });
+
+                if (response.ok) {
+                    addContactBtn.textContent = 'Contact Added!';
+
+                    // Build link to the created contact
+                    let contactUrl = null;
+                    try {
+                        const responseData = await response.json();
+                        const contactId = responseData.result?.data?.json?.id;
+                        if (contactId && cachedWorkspaces.length > 0) {
+                            const ws = cachedWorkspaces.find(w => w.id === workspaceId);
+                            if (ws && ws.slug) {
+                                contactUrl = `${apiBaseURL}/w/${ws.slug}/crm/contacts/${contactId}`;
+                            }
+                        }
+                    } catch (e) {
+                        // Non-critical — just skip the link
+                    }
+
+                    if (addContactStatus) {
+                        if (contactUrl) {
+                            addContactStatus.innerHTML = 'Contact created — <a href="' + contactUrl + '" target="_blank" style="color: var(--color-primary);">View on Exponential</a>';
+                        } else {
+                            addContactStatus.textContent = 'Contact created successfully';
+                        }
+                        addContactStatus.className = 'save-page-status success';
+                    }
+
+                    // Reset form
+                    if (addContactFirstName) addContactFirstName.value = '';
+                    if (addContactLastName) addContactLastName.value = '';
+                    if (addContactEmail) addContactEmail.value = '';
+                    if (addContactPhone) addContactPhone.value = '';
+                    if (addContactLinkedIn) addContactLinkedIn.value = '';
+                    if (addContactTags) addContactTags.value = '';
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMsg = errorData?.error?.json?.message || 'Failed to create contact';
+                    addContactBtn.textContent = 'Failed';
+                    if (addContactStatus) {
+                        addContactStatus.textContent = errorMsg;
+                        addContactStatus.className = 'save-page-status error';
+                    }
+                }
+            } catch (error) {
+                console.error('Error creating contact:', error);
+                addContactBtn.textContent = 'Failed';
+                if (addContactStatus) {
+                    addContactStatus.textContent = error.message || 'Network error';
+                    addContactStatus.className = 'save-page-status error';
+                }
+            }
+
+            setTimeout(() => {
+                addContactBtn.disabled = false;
+                addContactBtn.textContent = 'Add Contact';
             }, 2000);
         });
     }

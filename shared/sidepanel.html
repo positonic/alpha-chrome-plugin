@@ -1176,6 +1176,7 @@
     <div class="panel-tabs" id="panelTabs">
       <button id="tabSavePage" class="active">Save Page</button>
       <button id="tabCreateAction">Create Action</button>
+      <button id="tabAddContact">Add Contact</button>
       <button id="tabRecording">Recording</button>
     </div>
 
@@ -1205,6 +1206,18 @@
       </select>
       <button class="btn-create-action" id="createActionBtn">Create Action</button>
       <div class="save-page-status" id="createActionStatus"></div>
+    </div>
+
+    <!-- Tab: Add Contact -->
+    <div class="tab-panel" id="panelAddContact">
+      <input type="text" class="save-page-input" id="addContactFirstName" placeholder="First name...">
+      <input type="text" class="save-page-input" id="addContactLastName" placeholder="Last name...">
+      <input type="email" class="save-page-input" id="addContactEmail" placeholder="Email...">
+      <input type="tel" class="save-page-input" id="addContactPhone" placeholder="Phone...">
+      <input type="text" class="save-page-input" id="addContactLinkedIn" placeholder="LinkedIn URL...">
+      <input type="text" class="save-page-input" id="addContactTags" placeholder="Tags (comma-separated)...">
+      <button class="btn-create-action" id="addContactBtn">Add Contact</button>
+      <div class="save-page-status" id="addContactStatus"></div>
     </div>
 
     <!-- Tab 3: Recording (contains all existing dictation UI) -->

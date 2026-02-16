@@ -47,6 +47,7 @@ const EXTENSION_CONFIG = {
     apiBaseURL: "http://localhost:3000",
     hasProjects: true,
     hasSavePage: true,
+    hasCrmContacts: true,
     cookieDomain: "http://localhost:3000",
     sessionCookieNames: ["authjs.session-token"],
     projects: [] // Will be loaded dynamically from API
@@ -64,6 +65,7 @@ const EXTENSION_CONFIG = {
     apiBaseURL: "http://localhost:3000",
     hasProjects: false,
     hasSavePage: false,
+    hasCrmContacts: false,
     cookieDomain: "http://localhost:3000",
     sessionCookieNames: ["authjs.session-token"],
     projects: []
@@ -85,6 +87,7 @@ const EXTENSION_CONFIG = {
     apiBaseURL: "https://www.exponential.im",
     hasProjects: true,
     hasSavePage: true,
+    hasCrmContacts: true,
     cookieDomain: "https://www.exponential.im",
     sessionCookieNames: ["__Secure-authjs.session-token", "authjs.session-token"],
     projects: [] // Will be loaded dynamically from API
@@ -102,6 +105,7 @@ const EXTENSION_CONFIG = {
     apiBaseURL: "https://tradetronic.vercel.app",
     hasProjects: false,
     hasSavePage: false,
+    hasCrmContacts: false,
     cookieDomain: "https://tradetronic.vercel.app",
     sessionCookieNames: ["__Secure-authjs.session-token", "authjs.session-token"],
     projects: []
