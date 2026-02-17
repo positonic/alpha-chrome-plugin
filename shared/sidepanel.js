@@ -2054,7 +2054,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         parseNaturalLanguage: true,
                     }
                 };
-                if (description) body.json.description = description;
                 if (projectId && projectId !== 'default') {
                     body.json.projectId = projectId;
                 }
@@ -2063,6 +2062,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     body: JSON.stringify(body)
                 });
                 if (response.ok) {
+                    const result = await response.json();
+                    const actionId = result?.result?.data?.json?.action?.id;
+                    if (actionId && description) {
+                        apiUpdateAction(actionId, { description });
+                    }
                     createActionBtn.textContent = 'Created!';
                     if (createActionStatus) {
                         createActionStatus.textContent = 'Action created';
