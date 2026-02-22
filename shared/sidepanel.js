@@ -98,6 +98,9 @@ let lastSavedTranscription = ''; // Track what's already been saved to server (f
 let lastScreenshotTime = 0;
 const SCREENSHOT_COOLDOWN = 2000; // 2 seconds cooldown
 
+// Buffered screenshots for Create Action tab (uploaded after action creation)
+let pendingActionScreenshots = [];
+
 // Recording history state
 let recordingHistory = []; // Array of { sessionId, title, transcription, timestamp, sessionUrl }
 let selectedRecordingId = null; // Currently selected recording's sessionId
@@ -1617,6 +1620,98 @@ async function takeScreenshot() {
     });
 }
 
+// --- Take screenshot for Create Action tab (buffers until action is created) ---
+
+async function takeScreenshotForAction() {
+    const tab = await getActiveNormalTab();
+    if (!tab) {
+        if (createActionStatus) {
+            createActionStatus.textContent = 'No active tab found for screenshot';
+            createActionStatus.className = 'save-page-status error';
+        }
+        return;
+    }
+    chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }, async function(dataUrl) {
+        if (chrome.runtime.lastError || !dataUrl) {
+            if (createActionStatus) {
+                createActionStatus.textContent = 'Screenshot failed';
+                createActionStatus.className = 'save-page-status error';
+            }
+            return;
+        }
+        shutterSound.play().catch(() => {});
+
+        // Buffer the screenshot
+        pendingActionScreenshots.push({
+            dataUrl,
+            base64Data: dataUrl.replace(/^data:image\/png;base64,/, ''),
+            timestamp: getNow()
+        });
+
+        renderActionScreenshotPreviews();
+
+        // Auto-clear annotations after screenshot
+        chrome.tabs.sendMessage(tab.id, { type: 'annotation-clear' }).catch(() => {});
+
+        if (createActionStatus) {
+            createActionStatus.textContent = `${pendingActionScreenshots.length} screenshot(s) attached`;
+            createActionStatus.className = 'save-page-status success';
+            setTimeout(() => {
+                if (createActionStatus && createActionStatus.textContent.includes('screenshot')) {
+                    createActionStatus.textContent = '';
+                    createActionStatus.className = 'save-page-status';
+                }
+            }, 2000);
+        }
+    });
+}
+
+function renderActionScreenshotPreviews() {
+    if (!caScreenshotPreview) return;
+    caScreenshotPreview.innerHTML = '';
+    if (pendingActionScreenshots.length === 0) {
+        caScreenshotPreview.style.display = 'none';
+        return;
+    }
+    caScreenshotPreview.style.display = 'flex';
+    pendingActionScreenshots.forEach((shot, index) => {
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:relative;display:inline-block;';
+
+        const thumb = document.createElement('img');
+        thumb.className = 'action-screenshot-thumb';
+        thumb.src = shot.dataUrl;
+        thumb.alt = `Screenshot ${index + 1}`;
+        thumb.title = shot.timestamp;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = '\u00d7';
+        removeBtn.style.cssText = 'position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:#dc2626;color:white;border:none;font-size:10px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;';
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            pendingActionScreenshots.splice(index, 1);
+            renderActionScreenshotPreviews();
+        });
+
+        wrapper.appendChild(thumb);
+        wrapper.appendChild(removeBtn);
+        caScreenshotPreview.appendChild(wrapper);
+    });
+}
+
+async function saveActionScreenshot(actionId, base64Data, timestamp) {
+    try {
+        const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/action.saveScreenshot`, {
+            method: 'POST',
+            body: JSON.stringify({ json: { actionId, screenshot: base64Data, timestamp } })
+        });
+        return response.ok;
+    } catch (error) {
+        console.error('Error saving action screenshot:', error);
+        return false;
+    }
+}
+
 // --- Annotation overlay control ---
 
 let annotationActive = false;
@@ -1627,6 +1722,15 @@ const toolToggle = document.getElementById('toolToggle');
 const toolArrowBtn = document.getElementById('toolArrow');
 const toolFreehandBtn = document.getElementById('toolFreehand');
 const clearBtn = document.getElementById('clearAnnotations');
+
+// Create Action tab annotation controls (second instance)
+const caDrawBtn = document.getElementById('caToggleDraw');
+const caToolToggle = document.getElementById('caToolToggle');
+const caToolArrowBtn = document.getElementById('caToolArrow');
+const caToolFreehandBtn = document.getElementById('caToolFreehand');
+const caClearBtn = document.getElementById('caClearAnnotations');
+const caScreenshotBtn = document.getElementById('caScreenshotBtn');
+const caScreenshotPreview = document.getElementById('caScreenshotPreview');
 
 async function getActiveNormalTab() {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1693,6 +1797,7 @@ async function setAnnotationTool(tool) {
 }
 
 function updateAnnotationUI() {
+    // Update Recording tab controls
     if (drawBtn) {
         drawBtn.textContent = annotationActive ? 'Drawing' : 'Draw';
         drawBtn.classList.toggle('active', annotationActive);
@@ -1703,6 +1808,18 @@ function updateAnnotationUI() {
     if (toolArrowBtn) toolArrowBtn.classList.toggle('active', annotationTool === 'arrow');
     if (toolFreehandBtn) toolFreehandBtn.classList.toggle('active', annotationTool === 'freehand');
     if (clearBtn) clearBtn.style.display = annotationActive ? 'inline-block' : 'none';
+
+    // Update Create Action tab controls (mirror same state)
+    if (caDrawBtn) {
+        caDrawBtn.textContent = annotationActive ? 'Drawing' : 'Draw';
+        caDrawBtn.classList.toggle('active', annotationActive);
+    }
+    if (caToolToggle) {
+        caToolToggle.classList.toggle('visible', annotationActive);
+    }
+    if (caToolArrowBtn) caToolArrowBtn.classList.toggle('active', annotationTool === 'arrow');
+    if (caToolFreehandBtn) caToolFreehandBtn.classList.toggle('active', annotationTool === 'freehand');
+    if (caClearBtn) caClearBtn.style.display = annotationActive ? 'inline-block' : 'none';
 }
 
 // Listen for keyboard shortcut toggle from background script
@@ -1719,6 +1836,13 @@ if (drawBtn) drawBtn.addEventListener('click', toggleAnnotation);
 if (toolArrowBtn) toolArrowBtn.addEventListener('click', () => setAnnotationTool('arrow'));
 if (toolFreehandBtn) toolFreehandBtn.addEventListener('click', () => setAnnotationTool('freehand'));
 if (clearBtn) clearBtn.addEventListener('click', clearAnnotations);
+
+// Create Action tab annotation event listeners
+if (caScreenshotBtn) caScreenshotBtn.addEventListener('click', takeScreenshotForAction);
+if (caDrawBtn) caDrawBtn.addEventListener('click', toggleAnnotation);
+if (caToolArrowBtn) caToolArrowBtn.addEventListener('click', () => setAnnotationTool('arrow'));
+if (caToolFreehandBtn) caToolFreehandBtn.addEventListener('click', () => setAnnotationTool('freehand'));
+if (caClearBtn) caClearBtn.addEventListener('click', clearAnnotations);
 
 // --- Engine management ---
 
@@ -2067,6 +2191,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (actionId && description) {
                         apiUpdateAction(actionId, { description });
                     }
+                    // Upload buffered screenshots
+                    if (actionId && pendingActionScreenshots.length > 0) {
+                        const screenshotPromises = pendingActionScreenshots.map(shot =>
+                            saveActionScreenshot(actionId, shot.base64Data, shot.timestamp)
+                        );
+                        await Promise.allSettled(screenshotPromises);
+                    }
+                    pendingActionScreenshots = [];
+                    renderActionScreenshotPreviews();
                     createActionBtn.textContent = 'Created!';
                     if (createActionStatus) {
                         createActionStatus.textContent = 'Action created';

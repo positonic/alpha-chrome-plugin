@@ -415,6 +415,7 @@
       /* Annotation controls - Tertiary button style, better spacing */
       .annotation-controls {
         display: flex;
+        flex-wrap: wrap;
         gap: var(--space-sm);
         margin-bottom: var(--space-lg);
         align-items: center;
@@ -490,6 +491,28 @@
       }
       .btn-clear:hover {
         background: var(--color-gray-600) !important;
+      }
+
+      /* Screenshot preview thumbnails */
+      .action-screenshots {
+        display: flex;
+        gap: var(--space-xs);
+        flex-wrap: wrap;
+        padding: var(--space-xs);
+        background: var(--color-gray-50);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--color-gray-200);
+      }
+      .action-screenshot-thumb {
+        width: 60px;
+        height: 40px;
+        object-fit: cover;
+        border-radius: 4px;
+        border: 1px solid var(--color-gray-300);
+        cursor: pointer;
+      }
+      .action-screenshot-thumb:hover {
+        border-color: var(--color-primary);
       }
 
       /* Setup section - Cleaner, more spacious */
@@ -1204,6 +1227,20 @@
         <option value="Watch">Watch</option>
         <option value="Someday Maybe">Someday Maybe</option>
       </select>
+      <!-- Annotation controls for Create Action tab -->
+      <div class="annotation-controls">
+        <button id="caToggleDraw" class="btn-draw" title="Toggle drawing mode (Ctrl+Shift+D)">Draw</button>
+        <div class="tool-toggle" id="caToolToggle">
+          <button id="caToolArrow" class="active" title="Arrow tool">Arrow</button>
+          <button id="caToolFreehand" title="Freehand tool">Freehand</button>
+        </div>
+        <button id="caClearAnnotations" class="btn-clear" title="Clear all annotations" style="display:none;">Clear</button>
+        <button id="caScreenshotBtn" class="btn-clear" title="Take a screenshot" style="margin-left: auto;">Screenshot</button>
+      </div>
+
+      <!-- Screenshot preview area -->
+      <div class="action-screenshots" id="caScreenshotPreview" style="display:none;margin-bottom:var(--space-sm);"></div>
+
       <button class="btn-create-action" id="createActionBtn">Create Action</button>
       <div class="save-page-status" id="createActionStatus"></div>
     </div>
