@@ -66,6 +66,25 @@ const addContactTags = document.getElementById('addContactTags');
 const addContactBtn = document.getElementById('addContactBtn');
 const addContactStatus = document.getElementById('addContactStatus');
 
+// Track Time tab elements
+const tabTrackTimeBtn = document.getElementById('tabTrackTime');
+const panelTrackTime = document.getElementById('panelTrackTime');
+const trackTimeTitle = document.getElementById('trackTimeTitle');
+const trackTimePlayBtn = document.getElementById('trackTimePlayBtn');
+const trackTimeStopBtn = document.getElementById('trackTimeStopBtn');
+const trackTimeRunningBar = document.getElementById('trackTimeRunningBar');
+const trackTimeActionName = document.getElementById('trackTimeActionName');
+const trackTimeElapsed = document.getElementById('trackTimeElapsed');
+const trackTimeStatus = document.getElementById('trackTimeStatus');
+const trackTimeSuggestions = document.getElementById('trackTimeSuggestions');
+
+// Time Entries (history) tab elements
+const tabTimeEntriesBtn = document.getElementById('tabTimeEntries');
+const panelTimeEntries = document.getElementById('panelTimeEntries');
+const timeEntriesList = document.getElementById('timeEntriesList');
+const timeEntriesEmpty = document.getElementById('timeEntriesEmpty');
+const timeEntriesStatus = document.getElementById('timeEntriesStatus');
+
 const autoAuthCard = document.getElementById('autoAuthCard');
 
 const apiBaseURL = EXTENSION_CONFIG.apiBaseURL;
@@ -2017,6 +2036,433 @@ if (newRecordingBtn) {
     newRecordingBtn.onclick = deselectRecording;
 }
 
+// --- Track Time controller ---
+// One global timer per user. The server is authoritative; we keep a slim local
+// cache so the UI survives a side-panel reopen without a flicker.
+
+const TRACK_TIME_CACHE_KEY = 'TRACK_TIME_ACTIVE_ENTRY';
+const TRACK_TIME_SEARCH_DEBOUNCE_MS = 150;
+
+function notifyBackground(type) {
+    try {
+        chrome.runtime.sendMessage({ type }).catch(() => {});
+    } catch (_) {
+        // Service worker may be asleep; messages auto-wake it.
+    }
+}
+let trackTimeTickInterval = null;
+let trackTimeRunningStartedAt = null;
+// When a suggestion is clicked, we capture { actionId, projectId } so Play
+// attaches to the existing Action instead of creating a new one.
+let trackTimeSelectedSuggestion = null;
+let trackTimeSearchTimer = null;
+let trackTimeSearchSeq = 0;
+
+function setTrackTimeStatus(message, kind) {
+    if (!trackTimeStatus) return;
+    trackTimeStatus.textContent = message || '';
+    trackTimeStatus.className = kind ? `save-page-status ${kind}` : 'save-page-status';
+}
+
+function formatElapsed(ms) {
+    if (ms < 0) ms = 0;
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+function stopTrackTimeTick() {
+    if (trackTimeTickInterval) {
+        clearInterval(trackTimeTickInterval);
+        trackTimeTickInterval = null;
+    }
+    trackTimeRunningStartedAt = null;
+}
+
+function tickTrackTimeElapsed() {
+    if (!trackTimeRunningStartedAt || !trackTimeElapsed) return;
+    const ms = Date.now() - trackTimeRunningStartedAt.getTime();
+    trackTimeElapsed.textContent = formatElapsed(ms);
+}
+
+function renderTrackTimeRunning(entry) {
+    if (!entry || !entry.action) {
+        renderTrackTimeIdle();
+        return;
+    }
+    trackTimeRunningStartedAt = new Date(entry.startedAt);
+    if (trackTimeActionName) trackTimeActionName.textContent = entry.action.name || 'Untitled';
+    if (trackTimeRunningBar) trackTimeRunningBar.style.display = '';
+    if (trackTimeStopBtn) trackTimeStopBtn.style.display = '';
+    if (trackTimePlayBtn) trackTimePlayBtn.textContent = '▶ Play';
+    tickTrackTimeElapsed();
+    stopTrackTimeTick();
+    trackTimeTickInterval = setInterval(tickTrackTimeElapsed, 1000);
+    // Re-assign because stopTrackTimeTick clears it
+    trackTimeRunningStartedAt = new Date(entry.startedAt);
+}
+
+function renderTrackTimeIdle() {
+    stopTrackTimeTick();
+    if (trackTimeRunningBar) trackTimeRunningBar.style.display = 'none';
+    if (trackTimeStopBtn) trackTimeStopBtn.style.display = 'none';
+    if (trackTimeElapsed) trackTimeElapsed.textContent = '00:00';
+}
+
+async function trpcCall(procedure, payload, method) {
+    // tRPC v10 batched JSON over HTTP. For non-batched single-call simplicity
+    // we hit /api/trpc/<procedure> with the superjson envelope { json: ... }.
+    const url = `${apiBaseURL}/api/trpc/${procedure}`;
+    const opts = { method: method || 'POST' };
+    if (method === 'GET' || !method) {
+        // For queries we use GET with the input encoded
+        if (payload !== undefined) {
+            const input = encodeURIComponent(JSON.stringify({ json: payload }));
+            const response = await authenticatedFetch(`${url}?input=${input}`, { method: 'GET' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        }
+        const response = await authenticatedFetch(url, { method: 'GET' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+    }
+    opts.body = JSON.stringify({ json: payload });
+    const response = await authenticatedFetch(url, opts);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
+function extractTrpcData(json) {
+    return json && json.result && json.result.data && json.result.data.json;
+}
+
+async function reconcileActiveTimer() {
+    try {
+        const json = await trpcCall('timeEntry.getActive', undefined, 'GET');
+        const entry = extractTrpcData(json);
+        if (entry && !entry.endedAt) {
+            await chrome.storage.local.set({
+                [TRACK_TIME_CACHE_KEY]: {
+                    entryId: entry.id,
+                    actionId: entry.action && entry.action.id,
+                    startedAt: entry.startedAt,
+                    name: entry.action && entry.action.name,
+                },
+            });
+            renderTrackTimeRunning(entry);
+            setTrackTimeStatus('', '');
+            notifyBackground('TIMER_STARTED');
+        } else {
+            await chrome.storage.local.remove(TRACK_TIME_CACHE_KEY);
+            renderTrackTimeIdle();
+            notifyBackground('TIMER_STOPPED');
+        }
+    } catch (err) {
+        // Auth not configured yet or offline — fall back to idle UI silently.
+        renderTrackTimeIdle();
+    }
+}
+
+function hideTrackTimeSuggestions() {
+    if (!trackTimeSuggestions) return;
+    trackTimeSuggestions.style.display = 'none';
+    trackTimeSuggestions.innerHTML = '';
+}
+
+function renderTrackTimeSuggestions(items) {
+    if (!trackTimeSuggestions) return;
+    trackTimeSuggestions.innerHTML = '';
+    if (!items || items.length === 0) {
+        hideTrackTimeSuggestions();
+        return;
+    }
+    for (const item of items) {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        li.style.padding = 'var(--space-xs) var(--space-sm)';
+        li.style.cursor = 'pointer';
+        li.style.fontSize = 'var(--font-size-sm)';
+        const projectLabel = item.project && item.project.name ? ` · ${item.project.name}` : '';
+        li.textContent = item.name + projectLabel;
+        li.addEventListener('mouseenter', () => { li.style.background = 'var(--color-gray-100)'; });
+        li.addEventListener('mouseleave', () => { li.style.background = ''; });
+        li.addEventListener('mousedown', (e) => {
+            // mousedown so the click fires before input blur hides the list
+            e.preventDefault();
+            trackTimeSelectedSuggestion = {
+                actionId: item.id,
+                projectId: item.projectId || (item.project && item.project.id) || null,
+                name: item.name,
+            };
+            if (trackTimeTitle) trackTimeTitle.value = item.name;
+            hideTrackTimeSuggestions();
+        });
+        trackTimeSuggestions.appendChild(li);
+    }
+    trackTimeSuggestions.style.display = '';
+}
+
+async function searchTrackTimeSuggestions(query) {
+    const seq = ++trackTimeSearchSeq;
+    let workspaceId = null;
+    try {
+        workspaceId = await new Promise((resolve) => {
+            chrome.storage.local.get(['SELECTED_WORKSPACE_ID'], (r) => resolve(r.SELECTED_WORKSPACE_ID || null));
+        });
+    } catch (_) {
+        workspaceId = null;
+    }
+    try {
+        const payload = { query, limit: 8 };
+        if (workspaceId) payload.workspaceId = workspaceId;
+        const json = await trpcCall('action.searchByTitle', payload, 'GET');
+        // Discard stale results: only the latest request wins.
+        if (seq !== trackTimeSearchSeq) return;
+        const items = extractTrpcData(json) || [];
+        renderTrackTimeSuggestions(items);
+    } catch (_) {
+        // Silent: autocomplete is best-effort.
+        if (seq === trackTimeSearchSeq) hideTrackTimeSuggestions();
+    }
+}
+
+function onTrackTimeInputChanged() {
+    // Typing invalidates any previously-selected suggestion.
+    trackTimeSelectedSuggestion = null;
+    const value = trackTimeTitle ? trackTimeTitle.value.trim() : '';
+    if (trackTimeSearchTimer) {
+        clearTimeout(trackTimeSearchTimer);
+        trackTimeSearchTimer = null;
+    }
+    if (value.length === 0) {
+        hideTrackTimeSuggestions();
+        return;
+    }
+    trackTimeSearchTimer = setTimeout(() => { searchTrackTimeSuggestions(value); }, TRACK_TIME_SEARCH_DEBOUNCE_MS);
+}
+
+async function startTimeEntry() {
+    if (!trackTimePlayBtn) return;
+    const typedTitle = trackTimeTitle ? trackTimeTitle.value.trim() : '';
+    let selectedWorkspaceId = null;
+    let selectedProjectId = null;
+    try {
+        const stored = await new Promise((resolve) => {
+            chrome.storage.local.get(['SELECTED_WORKSPACE_ID', 'SELECTED_PROJECT_ID'], (r) => resolve(r || {}));
+        });
+        selectedWorkspaceId = stored.SELECTED_WORKSPACE_ID || null;
+        selectedProjectId = stored.SELECTED_PROJECT_ID || null;
+    } catch (_) {
+        // fall through with nulls
+    }
+
+    // D-on-A: matched Action's projectId wins; else SELECTED_PROJECT_ID; else null.
+    const payload = {};
+    if (trackTimeSelectedSuggestion && trackTimeSelectedSuggestion.actionId) {
+        payload.actionId = trackTimeSelectedSuggestion.actionId;
+    } else {
+        payload.typedTitle = typedTitle;
+        payload.projectId = selectedProjectId;
+        payload.workspaceId = selectedWorkspaceId;
+    }
+
+    trackTimePlayBtn.disabled = true;
+    setTrackTimeStatus('Starting…', '');
+    try {
+        const json = await trpcCall('timeEntry.start', payload);
+        const entry = extractTrpcData(json);
+        if (!entry) throw new Error('Unexpected response');
+        await chrome.storage.local.set({
+            [TRACK_TIME_CACHE_KEY]: {
+                entryId: entry.id,
+                actionId: entry.action && entry.action.id,
+                startedAt: entry.startedAt,
+                name: entry.action && entry.action.name,
+            },
+        });
+        if (trackTimeTitle) trackTimeTitle.value = '';
+        trackTimeSelectedSuggestion = null;
+        hideTrackTimeSuggestions();
+        renderTrackTimeRunning(entry);
+        setTrackTimeStatus('', '');
+        notifyBackground('TIMER_STARTED');
+    } catch (err) {
+        setTrackTimeStatus(err.message || 'Failed to start', 'error');
+    } finally {
+        trackTimePlayBtn.disabled = false;
+    }
+}
+
+// ── Time Entries history ─────────────────────────────────────────────────
+
+function startOfDay(d) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+}
+
+function dayLabel(date) {
+    const today = startOfDay(new Date());
+    const target = startOfDay(date);
+    const diffDays = Math.round((today - target) / 86400000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    return target.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+function formatTimeOfDay(date) {
+    return new Date(date).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatDurationMins(startedAt, endedAt) {
+    const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+    if (ms <= 0) return '0m';
+    const mins = Math.round(ms / 60000);
+    if (mins < 60) return `${mins}m`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+async function loadTimeEntries() {
+    if (!timeEntriesList) return;
+    timeEntriesStatus.textContent = '';
+    timeEntriesStatus.className = 'save-page-status';
+    try {
+        const json = await trpcCall('timeEntry.listRecent', { limit: 20 }, 'GET');
+        const entries = extractTrpcData(json) || [];
+        renderTimeEntries(entries);
+    } catch (err) {
+        timeEntriesList.innerHTML = '';
+        timeEntriesStatus.textContent = (err && err.message) || 'Could not load entries';
+        timeEntriesStatus.className = 'save-page-status error';
+    }
+}
+
+function renderTimeEntries(entries) {
+    if (!timeEntriesList) return;
+    timeEntriesList.innerHTML = '';
+    if (!entries || entries.length === 0) {
+        if (timeEntriesEmpty) timeEntriesEmpty.style.display = '';
+        return;
+    }
+    if (timeEntriesEmpty) timeEntriesEmpty.style.display = 'none';
+
+    // Group by local day, preserving newest-first order.
+    const groups = new Map();
+    for (const e of entries) {
+        const key = startOfDay(new Date(e.startedAt)).toISOString();
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(e);
+    }
+
+    for (const [key, rows] of groups) {
+        const header = document.createElement('div');
+        header.style.fontWeight = '600';
+        header.style.fontSize = 'var(--font-size-sm)';
+        header.style.color = 'var(--color-gray-700)';
+        header.style.marginTop = 'var(--space-md)';
+        header.style.marginBottom = 'var(--space-xs)';
+        header.textContent = dayLabel(new Date(key));
+        timeEntriesList.appendChild(header);
+
+        for (const e of rows) {
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.justifyContent = 'space-between';
+            row.style.padding = 'var(--space-xs) var(--space-sm)';
+            row.style.borderRadius = 'var(--radius-md)';
+            row.style.background = 'var(--color-gray-100)';
+            row.style.marginBottom = 'var(--space-xs)';
+
+            const left = document.createElement('div');
+            left.style.minWidth = '0';
+            left.style.flex = '1';
+            const name = document.createElement('div');
+            name.style.fontSize = 'var(--font-size-sm)';
+            name.style.fontWeight = '500';
+            name.style.overflow = 'hidden';
+            name.style.textOverflow = 'ellipsis';
+            name.style.whiteSpace = 'nowrap';
+            name.textContent = (e.action && e.action.name) || 'Untitled';
+            const meta = document.createElement('div');
+            meta.style.fontSize = '11px';
+            meta.style.color = 'var(--color-gray-500)';
+            meta.textContent = `${formatTimeOfDay(e.startedAt)}–${formatTimeOfDay(e.endedAt)} · ${formatDurationMins(e.startedAt, e.endedAt)}`;
+            left.appendChild(name);
+            left.appendChild(meta);
+
+            const resumeBtn = document.createElement('button');
+            resumeBtn.textContent = 'Resume';
+            resumeBtn.className = 'btn-primary';
+            resumeBtn.style.flex = '0 0 auto';
+            resumeBtn.style.marginLeft = 'var(--space-sm)';
+            resumeBtn.style.padding = '4px 10px';
+            resumeBtn.style.fontSize = 'var(--font-size-sm)';
+            resumeBtn.addEventListener('click', () => resumeFromHistory(e, resumeBtn));
+
+            row.appendChild(left);
+            row.appendChild(resumeBtn);
+            timeEntriesList.appendChild(row);
+        }
+    }
+}
+
+async function resumeFromHistory(entry, btn) {
+    if (!entry || !entry.action || !entry.action.id) return;
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+        const json = await trpcCall('timeEntry.start', { actionId: entry.action.id });
+        const newEntry = extractTrpcData(json);
+        if (!newEntry) throw new Error('No response');
+        await chrome.storage.local.set({
+            [TRACK_TIME_CACHE_KEY]: {
+                entryId: newEntry.id,
+                actionId: newEntry.action && newEntry.action.id,
+                startedAt: newEntry.startedAt,
+                name: newEntry.action && newEntry.action.name,
+            },
+        });
+        notifyBackground('TIMER_STARTED');
+        renderTrackTimeRunning(newEntry);
+        // Switch to Track Time tab so the user sees the running timer.
+        if (tabTrackTimeBtn) tabTrackTimeBtn.click();
+        // Refresh history list to include any auto-stopped entry.
+        loadTimeEntries();
+    } catch (err) {
+        if (timeEntriesStatus) {
+            timeEntriesStatus.textContent = (err && err.message) || 'Resume failed';
+            timeEntriesStatus.className = 'save-page-status error';
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
+async function stopTimeEntry() {
+    if (!trackTimeStopBtn) return;
+    trackTimeStopBtn.disabled = true;
+    setTrackTimeStatus('Stopping…', '');
+    try {
+        await trpcCall('timeEntry.stop', {});
+        await chrome.storage.local.remove(TRACK_TIME_CACHE_KEY);
+        renderTrackTimeIdle();
+        setTrackTimeStatus('', '');
+        notifyBackground('TIMER_STOPPED');
+    } catch (err) {
+        setTrackTimeStatus(err.message || 'Failed to stop', 'error');
+    } finally {
+        trackTimeStopBtn.disabled = false;
+    }
+}
+
 // --- Initialize ---
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2028,9 +2474,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         testModeBadge.classList.remove('hidden');
     }
 
+    // Persist API base URL so the service worker can reconcile the toolbar
+    // badge from `timeEntry.getActive` on browser startup (when the side panel
+    // hasn't been opened yet).
+    try { chrome.storage.local.set({ API_BASE_URL: apiBaseURL }); } catch (_) {}
+
     // Initialize panel tabs based on config
-    const allTabs = [tabSavePageBtn, tabCreateActionBtn, tabAddContactBtn, tabRecordingBtn].filter(Boolean);
-    const allPanels = [panelSavePage, panelCreateAction, panelAddContact, panelRecording].filter(Boolean);
+    const allTabs = [tabSavePageBtn, tabCreateActionBtn, tabAddContactBtn, tabTrackTimeBtn, tabTimeEntriesBtn, tabRecordingBtn].filter(Boolean);
+    const allPanels = [panelSavePage, panelCreateAction, panelAddContact, panelTrackTime, panelTimeEntries, panelRecording].filter(Boolean);
 
     function switchTab(activeTab, activePanel) {
         allTabs.forEach(t => t.classList.remove('active'));
@@ -2062,9 +2513,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (tabAddContactBtn) {
         tabAddContactBtn.addEventListener('click', () => switchTab(tabAddContactBtn, panelAddContact));
     }
+    if (tabTrackTimeBtn) {
+        tabTrackTimeBtn.addEventListener('click', () => {
+            switchTab(tabTrackTimeBtn, panelTrackTime);
+            reconcileActiveTimer();
+        });
+    }
+    if (tabTimeEntriesBtn) {
+        tabTimeEntriesBtn.addEventListener('click', () => {
+            switchTab(tabTimeEntriesBtn, panelTimeEntries);
+            loadTimeEntries();
+        });
+    }
     if (tabRecordingBtn) {
         tabRecordingBtn.addEventListener('click', () => switchTab(tabRecordingBtn, panelRecording));
     }
+
+    // Track Time wiring
+    if (trackTimePlayBtn) {
+        trackTimePlayBtn.addEventListener('click', startTimeEntry);
+    }
+    if (trackTimeStopBtn) {
+        trackTimeStopBtn.addEventListener('click', stopTimeEntry);
+    }
+    if (trackTimeTitle) {
+        trackTimeTitle.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                startTimeEntry();
+            } else if (e.key === 'Escape') {
+                hideTrackTimeSuggestions();
+            }
+        });
+        trackTimeTitle.addEventListener('input', onTrackTimeInputChanged);
+        trackTimeTitle.addEventListener('blur', () => {
+            // Slight delay so suggestion mousedown can fire first.
+            setTimeout(hideTrackTimeSuggestions, 100);
+        });
+    }
+    // Reconcile on panel open: getActive from server, restore display state
+    reconcileActiveTimer();
 
     // Save Page button
     if (savePageBtn) {
