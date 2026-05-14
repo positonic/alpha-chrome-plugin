@@ -2094,7 +2094,7 @@ function renderTrackTimeRunning(entry) {
         return;
     }
     trackTimeRunningStartedAt = new Date(entry.startedAt);
-    if (trackTimeActionName) trackTimeActionName.textContent = entry.action.name || 'Untitled';
+    if (trackTimeActionName) trackTimeActionName.textContent = htmlToPlainText(entry.action.name) || 'Untitled';
     if (trackTimeRunningBar) trackTimeRunningBar.style.display = '';
     if (trackTimeStopBtn) trackTimeStopBtn.style.display = '';
     if (trackTimePlayBtn) trackTimePlayBtn.textContent = '▶ Play';
@@ -2115,10 +2115,9 @@ function renderTrackTimeIdle() {
 async function trpcCall(procedure, payload, method) {
     // tRPC v10 batched JSON over HTTP. For non-batched single-call simplicity
     // we hit /api/trpc/<procedure> with the superjson envelope { json: ... }.
+    // Mutations use POST (default); queries must pass method='GET' explicitly.
     const url = `${apiBaseURL}/api/trpc/${procedure}`;
-    const opts = { method: method || 'POST' };
-    if (method === 'GET' || !method) {
-        // For queries we use GET with the input encoded
+    if (method === 'GET') {
         if (payload !== undefined) {
             const input = encodeURIComponent(JSON.stringify({ json: payload }));
             const response = await authenticatedFetch(`${url}?input=${input}`, { method: 'GET' });
@@ -2129,8 +2128,10 @@ async function trpcCall(procedure, payload, method) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json();
     }
-    opts.body = JSON.stringify({ json: payload });
-    const response = await authenticatedFetch(url, opts);
+    const response = await authenticatedFetch(url, {
+        method: 'POST',
+        body: JSON.stringify({ json: payload }),
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
 }
@@ -2172,6 +2173,13 @@ function hideTrackTimeSuggestions() {
     trackTimeSuggestions.innerHTML = '';
 }
 
+function htmlToPlainText(s) {
+    if (!s) return '';
+    if (s.indexOf('<') === -1 && s.indexOf('&') === -1) return s;
+    const doc = new DOMParser().parseFromString(s, 'text/html');
+    return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
 function renderTrackTimeSuggestions(items) {
     if (!trackTimeSuggestions) return;
     trackTimeSuggestions.innerHTML = '';
@@ -2179,30 +2187,33 @@ function renderTrackTimeSuggestions(items) {
         hideTrackTimeSuggestions();
         return;
     }
-    for (const item of items) {
+    items.forEach((item, i) => {
         const li = document.createElement('li');
         li.setAttribute('role', 'option');
         li.style.padding = 'var(--space-xs) var(--space-sm)';
         li.style.cursor = 'pointer';
         li.style.fontSize = 'var(--font-size-sm)';
-        const projectLabel = item.project && item.project.name ? ` · ${item.project.name}` : '';
-        li.textContent = item.name + projectLabel;
-        li.addEventListener('mouseenter', () => { li.style.background = 'var(--color-gray-100)'; });
-        li.addEventListener('mouseleave', () => { li.style.background = ''; });
+        if (i < items.length - 1) {
+            li.style.borderBottom = '1px solid var(--color-gray-200)';
+        }
+        const cleanName = htmlToPlainText(item.name);
+        const projectName = htmlToPlainText(item.project && item.project.name);
+        const projectLabel = projectName ? ` · ${projectName}` : '';
+        li.textContent = cleanName + projectLabel;
         li.addEventListener('mousedown', (e) => {
             // mousedown so the click fires before input blur hides the list
             e.preventDefault();
             trackTimeSelectedSuggestion = {
                 actionId: item.id,
                 projectId: item.projectId || (item.project && item.project.id) || null,
-                name: item.name,
+                name: cleanName,
             };
-            if (trackTimeTitle) trackTimeTitle.value = item.name;
+            if (trackTimeTitle) trackTimeTitle.value = cleanName;
             hideTrackTimeSuggestions();
         });
         trackTimeSuggestions.appendChild(li);
-    }
-    trackTimeSuggestions.style.display = '';
+    });
+    trackTimeSuggestions.style.display = 'block';
 }
 
 async function searchTrackTimeSuggestions(query) {
@@ -2388,7 +2399,7 @@ function renderTimeEntries(entries) {
             name.style.overflow = 'hidden';
             name.style.textOverflow = 'ellipsis';
             name.style.whiteSpace = 'nowrap';
-            name.textContent = (e.action && e.action.name) || 'Untitled';
+            name.textContent = htmlToPlainText(e.action && e.action.name) || 'Untitled';
             const meta = document.createElement('div');
             meta.style.fontSize = '11px';
             meta.style.color = 'var(--color-gray-500)';

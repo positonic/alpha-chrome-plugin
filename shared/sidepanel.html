@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8">
     <title>Voice Dictation</title>
     <style>
       /* ===== Design Tokens ===== */
@@ -1156,6 +1157,40 @@
         color: var(--color-error);
         font-size: var(--font-size-sm);
       }
+      .track-time-suggestions {
+        display: none;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 100%;
+        margin: 0;
+        padding: 4px 0;
+        list-style: none;
+        background: white;
+        border: 1px solid var(--color-gray-300);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
+        max-height: 280px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        z-index: 10;
+        scrollbar-width: thin;
+        scrollbar-color: var(--color-gray-300) transparent;
+      }
+      .track-time-suggestions::-webkit-scrollbar {
+        width: 6px;
+      }
+      .track-time-suggestions::-webkit-scrollbar-thumb {
+        background: var(--color-gray-300);
+        border-radius: 3px;
+      }
+      .track-time-suggestions::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .track-time-suggestions li:hover,
+      .track-time-suggestions li[aria-selected="true"] {
+        background: var(--color-gray-100);
+      }
     </style>
   </head>
   <body>
@@ -1296,7 +1331,7 @@
     <div class="tab-panel" id="panelTrackTime">
       <div class="track-time-autocomplete-wrap" style="position:relative;">
         <input type="text" class="save-page-input" id="trackTimeTitle" placeholder="What are you working on?" autocomplete="off">
-        <ul id="trackTimeSuggestions" class="track-time-suggestions" role="listbox" style="display:none;position:absolute;left:0;right:0;top:100%;margin:0;padding:4px 0;list-style:none;background:white;border:1px solid var(--color-gray-300);border-radius:var(--radius-md);box-shadow:var(--shadow-md);max-height:200px;overflow-y:auto;z-index:10;"></ul>
+        <ul id="trackTimeSuggestions" class="track-time-suggestions" role="listbox"></ul>
       </div>
       <button class="btn-primary" id="trackTimePlayBtn">▶ Play</button>
       <div class="status-bar" id="trackTimeRunningBar" style="display:none;margin-top:var(--space-sm);">
