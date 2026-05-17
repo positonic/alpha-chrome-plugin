@@ -2112,6 +2112,13 @@ function renderTrackTimeIdle() {
     if (trackTimeElapsed) trackTimeElapsed.textContent = '00:00';
 }
 
+function openRunningTimerInCalendar() {
+    if (!trackTimeRunningStartedAt) return;
+    const d = trackTimeRunningStartedAt;
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    chrome.tabs.create({ url: `${apiBaseURL}/calendar?date=${date}` });
+}
+
 async function trpcCall(procedure, payload, method) {
     // tRPC v10 batched JSON over HTTP. For non-batched single-call simplicity
     // we hit /api/trpc/<procedure> with the superjson envelope { json: ... }.
@@ -2546,6 +2553,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (trackTimeStopBtn) {
         trackTimeStopBtn.addEventListener('click', stopTimeEntry);
+    }
+    if (trackTimeRunningBar) {
+        trackTimeRunningBar.addEventListener('click', openRunningTimerInCalendar);
+        trackTimeRunningBar.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openRunningTimerInCalendar();
+            }
+        });
     }
     if (trackTimeTitle) {
         trackTimeTitle.addEventListener('keydown', (e) => {
