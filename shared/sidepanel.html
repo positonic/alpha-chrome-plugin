@@ -537,6 +537,41 @@
         border-color: var(--color-primary);
       }
 
+      /* Recent items list (latest things created from each form tab) */
+      .recent-items {
+        margin-top: var(--space-lg);
+        padding-top: var(--space-md);
+        border-top: 1px solid var(--color-gray-200);
+      }
+      .recent-items-header {
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-gray-600);
+        margin-bottom: var(--space-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+      }
+      .recent-items-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-height: 260px;
+        overflow-y: auto;
+      }
+      .recent-item-time {
+        font-size: 10px;
+        color: var(--color-gray-400);
+        flex-shrink: 0;
+      }
+      .recent-item-static {
+        cursor: default;
+      }
+      .recent-item-static:hover {
+        background: var(--color-gray-50);
+        border-color: var(--color-gray-200);
+        color: var(--color-gray-700);
+      }
+
       /* Setup section - Cleaner, more spacious */
       .setup-card {
         background: white;
@@ -1278,6 +1313,10 @@
       <input type="text" class="save-page-input" id="savePageContext" placeholder="Add context (optional)...">
       <button class="btn-save-page" id="savePageBtn">Save Page</button>
       <div class="save-page-status" id="savePageStatus"></div>
+      <div class="recent-items" id="recentSavePage" style="display:none;">
+        <div class="recent-items-header">Recent Saved Pages</div>
+        <div class="recent-items-list" id="recentSavePageList"></div>
+      </div>
     </div>
 
     <!-- Tab 2: Create Action -->
@@ -1313,6 +1352,10 @@
 
       <button class="btn-create-action" id="createActionBtn">Create Action</button>
       <div class="save-page-status" id="createActionStatus"></div>
+      <div class="recent-items" id="recentCreateAction" style="display:none;">
+        <div class="recent-items-header">Recent Actions</div>
+        <div class="recent-items-list" id="recentCreateActionList"></div>
+      </div>
     </div>
 
     <!-- Tab: Add Contact -->
@@ -1325,6 +1368,10 @@
       <input type="text" class="save-page-input" id="addContactTags" placeholder="Tags (comma-separated)...">
       <button class="btn-create-action" id="addContactBtn">Add Contact</button>
       <div class="save-page-status" id="addContactStatus"></div>
+      <div class="recent-items" id="recentAddContact" style="display:none;">
+        <div class="recent-items-header">Recent Contacts</div>
+        <div class="recent-items-list" id="recentAddContactList"></div>
+      </div>
     </div>
 
     <!-- Tab: Track Time -->
@@ -1340,6 +1387,10 @@
       </div>
       <button class="btn-primary" id="trackTimeStopBtn" style="display:none;margin-top:var(--space-sm);">■ Stop</button>
       <div class="save-page-status" id="trackTimeStatus"></div>
+      <div class="recent-items" id="recentTrackTime" style="display:none;">
+        <div class="recent-items-header">Recently Logged</div>
+        <div class="recent-items-list" id="recentTrackTimeList"></div>
+      </div>
     </div>
 
     <!-- Tab: Time Entries (read-only history) -->
