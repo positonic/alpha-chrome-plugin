@@ -2469,8 +2469,17 @@ async function stopTimeEntry() {
     trackTimeStopBtn.disabled = true;
     setTrackTimeStatus('Stopping…', '');
     try {
+        const cached = await new Promise((resolve) => {
+            chrome.storage.local.get([TRACK_TIME_CACHE_KEY], (r) => resolve((r || {})[TRACK_TIME_CACHE_KEY] || null));
+        });
         await trpcCall('timeEntry.stop', {});
         await chrome.storage.local.remove(TRACK_TIME_CACHE_KEY);
+        if (cached && cached.startedAt) {
+            addRecentItem('trackTime', {
+                name: htmlToPlainText(cached.name || '') || 'Untitled',
+                meta: formatElapsed(Date.now() - new Date(cached.startedAt).getTime()),
+            });
+        }
         renderTrackTimeIdle();
         setTrackTimeStatus('', '');
         notifyBackground('TIMER_STOPPED');
@@ -2479,6 +2488,102 @@ async function stopTimeEntry() {
     } finally {
         trackTimeStopBtn.disabled = false;
     }
+}
+
+// ── Recent items (latest things created from each form tab) ──────────────
+
+const RECENT_ITEMS_KEY = 'RECENT_ITEMS_V1';
+const RECENT_ITEMS_MAX = 8;
+const RECENT_SECTIONS = {
+    savePage: { container: 'recentSavePage', list: 'recentSavePageList' },
+    createAction: { container: 'recentCreateAction', list: 'recentCreateActionList' },
+    addContact: { container: 'recentAddContact', list: 'recentAddContactList' },
+    trackTime: { container: 'recentTrackTime', list: 'recentTrackTimeList' },
+};
+const RECENT_ITEM_ICONS = {
+    savePage: '<svg class="recording-action-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>',
+    createAction: '<svg class="recording-action-link-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="14" height="14" rx="3"/><path d="M4.5 8.5L7 11L11.5 5.5"/></svg>',
+    addContact: '<svg class="recording-action-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle></svg>',
+    trackTime: '<svg class="recording-action-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><polyline points="12 9 12 13 15 15"></polyline></svg>',
+};
+
+let recentItems = { savePage: [], createAction: [], addContact: [], trackTime: [] };
+
+async function loadRecentItems() {
+    const stored = await new Promise((resolve) => {
+        chrome.storage.local.get([RECENT_ITEMS_KEY], (r) => resolve((r || {})[RECENT_ITEMS_KEY] || null));
+    });
+    if (stored && typeof stored === 'object') {
+        for (const key of Object.keys(recentItems)) {
+            if (Array.isArray(stored[key])) recentItems[key] = stored[key];
+        }
+    }
+    Object.keys(RECENT_SECTIONS).forEach(renderRecentItems);
+}
+
+function addRecentItem(category, item) {
+    if (!recentItems[category]) return;
+    recentItems[category].unshift({ ...item, ts: Date.now() });
+    recentItems[category] = recentItems[category].slice(0, RECENT_ITEMS_MAX);
+    try { chrome.storage.local.set({ [RECENT_ITEMS_KEY]: recentItems }); } catch (_) {}
+    renderRecentItems(category);
+}
+
+function formatRecentTime(ts) {
+    if (!ts) return '';
+    const mins = Math.round((Date.now() - ts) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return new Date(ts).toLocaleDateString();
+}
+
+function renderRecentItems(category) {
+    const ids = RECENT_SECTIONS[category];
+    if (!ids) return;
+    const container = document.getElementById(ids.container);
+    const list = document.getElementById(ids.list);
+    if (!container || !list) return;
+
+    const items = recentItems[category] || [];
+    if (items.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    container.style.display = '';
+    list.innerHTML = '';
+
+    items.forEach((item) => {
+        const row = document.createElement(item.url ? 'a' : 'div');
+        row.className = 'recording-action-link' + (item.url ? '' : ' recent-item-static');
+        if (item.url) {
+            row.href = item.url;
+            row.target = '_blank';
+        }
+        row.title = item.name || '';
+        row.innerHTML = RECENT_ITEM_ICONS[category] || '';
+
+        const name = document.createElement('span');
+        name.className = 'recording-action-link-name';
+        name.textContent = item.name || 'Untitled';
+        row.appendChild(name);
+
+        if (item.meta) {
+            const meta = document.createElement('span');
+            meta.className = 'recording-action-link-priority' +
+                (category === 'createAction' ? ' ' + getPriorityClass(item.meta) : '');
+            meta.textContent = item.meta;
+            row.appendChild(meta);
+        }
+
+        const time = document.createElement('span');
+        time.className = 'recent-item-time';
+        time.textContent = formatRecentTime(item.ts);
+        row.appendChild(time);
+
+        list.appendChild(row);
+    });
 }
 
 // --- Initialize ---
@@ -2632,6 +2737,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                             : link;
                         apiUpdateAction(actionId, { name: finalName });
                     }
+                    addRecentItem('savePage', {
+                        name: (context && context.trim()) ? `${context.trim()}: ${tab.title || tab.url}` : (tab.title || tab.url),
+                        url: actionId ? getActionUrl(actionId) : (tab.url || null),
+                    });
                     savePageBtn.textContent = 'Saved!';
                     if (savePageStatus) {
                         savePageStatus.textContent = 'Action created';
@@ -2715,6 +2824,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     pendingActionScreenshots = [];
                     renderActionScreenshotPreviews();
+                    addRecentItem('createAction', {
+                        name,
+                        url: actionId ? getActionUrl(actionId) : null,
+                        meta: priority,
+                    });
                     createActionBtn.textContent = 'Created!';
                     if (createActionStatus) {
                         createActionStatus.textContent = 'Action created';
@@ -2812,6 +2926,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         // Non-critical — just skip the link
                     }
 
+                    addRecentItem('addContact', {
+                        name: [firstName, lastName].filter(Boolean).join(' '),
+                        url: contactUrl,
+                    });
+
                     if (addContactStatus) {
                         if (contactUrl) {
                             addContactStatus.innerHTML = 'Contact created — <a href="' + contactUrl + '" target="_blank" style="color: var(--color-primary);">View on Exponential</a>';
@@ -2856,6 +2975,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load recording history
     await loadRecordingHistory();
     renderRecordingList();
+
+    // Load recent-items history (saved pages, actions, contacts, time logged)
+    loadRecentItems();
 
     // Check setup state — only initialize engine if fully configured
     const isConfigured = await checkSetupState();
