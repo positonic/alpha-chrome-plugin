@@ -2472,12 +2472,18 @@ async function stopTimeEntry() {
         const cached = await new Promise((resolve) => {
             chrome.storage.local.get([TRACK_TIME_CACHE_KEY], (r) => resolve((r || {})[TRACK_TIME_CACHE_KEY] || null));
         });
-        await trpcCall('timeEntry.stop', {});
+        const stopJson = await trpcCall('timeEntry.stop', {});
         await chrome.storage.local.remove(TRACK_TIME_CACHE_KEY);
-        if (cached && cached.startedAt) {
+        // Prefer the server's stopped entry (authoritative times/name); fall
+        // back to the local cache captured before the stop call.
+        const stopped = extractTrpcData(stopJson);
+        const startedAt = (stopped && stopped.startedAt) || (cached && cached.startedAt);
+        if (startedAt) {
+            const endedAt = (stopped && stopped.endedAt) ? new Date(stopped.endedAt).getTime() : Date.now();
+            const entryName = (stopped && stopped.action && stopped.action.name) || (cached && cached.name) || '';
             addRecentItem('trackTime', {
-                name: htmlToPlainText(cached.name || '') || 'Untitled',
-                meta: formatElapsed(Date.now() - new Date(cached.startedAt).getTime()),
+                name: htmlToPlainText(entryName) || 'Untitled',
+                meta: formatElapsed(endedAt - new Date(startedAt).getTime()),
             });
         }
         renderTrackTimeIdle();
@@ -2521,8 +2527,20 @@ async function loadRecentItems() {
     Object.keys(RECENT_SECTIONS).forEach(renderRecentItems);
 }
 
-function addRecentItem(category, item) {
+async function addRecentItem(category, item) {
     if (!recentItems[category]) return;
+    // Read-modify-write against storage so side panels in other Chrome
+    // windows don't clobber each other's additions.
+    try {
+        const stored = await new Promise((resolve) => {
+            chrome.storage.local.get([RECENT_ITEMS_KEY], (r) => resolve((r || {})[RECENT_ITEMS_KEY] || null));
+        });
+        if (stored && typeof stored === 'object') {
+            for (const key of Object.keys(recentItems)) {
+                if (Array.isArray(stored[key])) recentItems[key] = stored[key];
+            }
+        }
+    } catch (_) {}
     recentItems[category].unshift({ ...item, ts: Date.now() });
     recentItems[category] = recentItems[category].slice(0, RECENT_ITEMS_MAX);
     try { chrome.storage.local.set({ [RECENT_ITEMS_KEY]: recentItems }); } catch (_) {}
@@ -2611,6 +2629,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         allPanels.forEach(p => p.classList.remove('active'));
         if (activeTab) activeTab.classList.add('active');
         if (activePanel) activePanel.classList.add('active');
+        // Refresh relative timestamps in the recent-items lists.
+        Object.keys(RECENT_SECTIONS).forEach(renderRecentItems);
     }
 
     if (hasSavePage) {
