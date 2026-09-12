@@ -281,6 +281,14 @@ async function authenticatedFetch(url, options = {}) {
     return response;
 }
 
+// Read a tRPC error body and return its message, or the fallback when the
+// body is missing, not JSON, or carries a non-string message.
+async function readTrpcErrorMessage(response, fallback) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData?.error?.json?.message;
+    return typeof message === 'string' && message.trim() ? message : fallback;
+}
+
 // --- Save Page helpers ---
 
 function escapeHtml(str) {
@@ -809,7 +817,8 @@ async function createActionForRecording(name, sessionId) {
     });
 
     if (!response.ok) {
-        throw new Error(`Failed to create action: ${response.status}`);
+        const serverMessage = await readTrpcErrorMessage(response, `HTTP ${response.status}`);
+        throw new Error(`Failed to create action: ${serverMessage}`);
     }
 
     const result = await response.json();
@@ -2858,9 +2867,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (createActionDesc) createActionDesc.value = '';
                     if (createActionPriority) createActionPriority.value = 'Quick';
                 } else {
+                    const serverMessage = await readTrpcErrorMessage(
+                        response,
+                        `HTTP ${response.status}`
+                    );
+                    console.error('Failed to create action:', response.status, serverMessage);
                     createActionBtn.textContent = 'Failed';
                     if (createActionStatus) {
-                        createActionStatus.textContent = 'Failed to create action';
+                        createActionStatus.textContent = `Failed to create action: ${serverMessage}`;
                         createActionStatus.className = 'save-page-status error';
                     }
                 }
