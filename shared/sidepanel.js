@@ -2858,9 +2858,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (createActionDesc) createActionDesc.value = '';
                     if (createActionPriority) createActionPriority.value = 'Quick';
                 } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    const serverMessage = errorData?.error?.json?.message;
+                    console.error('Failed to create action:', response.status, errorData);
                     createActionBtn.textContent = 'Failed';
                     if (createActionStatus) {
-                        createActionStatus.textContent = 'Failed to create action';
+                        createActionStatus.textContent = serverMessage
+                            ? `Failed to create action: ${serverMessage}`
+                            : `Failed to create action (${response.status})`;
                         createActionStatus.className = 'save-page-status error';
                     }
                 }
