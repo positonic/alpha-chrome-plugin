@@ -1046,6 +1046,10 @@ async function apiLinkActionsToTranscription(actionIds, transcriptionSessionId) 
 
 async function createActionForRecording(name, sessionId) {
     const projectId = await getSelectedProjectId();
+    if (hasProjects && !projectId) {
+        if (sharedProject) sharedProject.focus();
+        throw new Error('Please select a project first');
+    }
 
     const body = {
         json: {
