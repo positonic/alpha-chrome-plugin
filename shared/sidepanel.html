@@ -1240,6 +1240,71 @@
       .track-time-suggestions li[aria-selected="true"] {
         background: var(--color-gray-100);
       }
+      /* Searchable select (text input + filtered list layered over a native <select>) */
+      .searchable-select {
+        position: relative;
+      }
+      .searchable-select::after {
+        content: '▼';
+        position: absolute;
+        right: var(--space-md);
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 9px;
+        color: var(--color-gray-500);
+        pointer-events: none;
+      }
+      .searchable-select .searchable-select-input {
+        margin-bottom: 0;
+        padding-right: calc(var(--space-md) * 2);
+        text-overflow: ellipsis;
+      }
+      .searchable-select-native {
+        display: none !important;
+      }
+      .searchable-select-list {
+        display: none;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(100% + 2px);
+        margin: 0;
+        padding: 4px 0;
+        list-style: none;
+        background: white;
+        border: 1px solid var(--color-gray-300);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
+        max-height: 240px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        z-index: 20;
+        scrollbar-width: thin;
+        scrollbar-color: var(--color-gray-300) transparent;
+      }
+      .searchable-select-list li {
+        padding: var(--space-xs) var(--space-sm);
+        font-size: var(--font-size-sm);
+        color: var(--color-gray-700);
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .searchable-select-list li.is-current {
+        font-weight: var(--font-weight-semibold);
+      }
+      .searchable-select-list li:hover,
+      .searchable-select-list li[aria-selected="true"] {
+        background: var(--color-gray-100);
+      }
+      .searchable-select-list li.searchable-select-empty {
+        color: var(--color-gray-500);
+        cursor: default;
+      }
+      .searchable-select-list li.searchable-select-empty:hover {
+        background: none;
+      }
     </style>
   </head>
   <body>
@@ -1289,10 +1354,13 @@
 
     <!-- Shared workspace/project selector (above tabs) - Collapsible for progressive disclosure -->
     <details class="shared-project-selector" id="sharedProjectSelector">
-      <summary>Workspace & Project</summary>
+      <summary>Workspace, Goal & Project</summary>
       <div style="padding-top: 8px;">
         <select class="shared-select" id="sharedWorkspace">
           <option value="">Select workspace...</option>
+        </select>
+        <select class="shared-select" id="sharedGoal" style="display:none;">
+          <option value="" data-searchable-keep>All goals</option>
         </select>
         <select class="shared-select" id="sharedProject">
           <option value="">Select project...</option>

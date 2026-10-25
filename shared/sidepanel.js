@@ -34,6 +34,7 @@ const setupWorkspaceDropdown = document.getElementById('setupWorkspaceDropdown')
 const sharedProjectSelector = document.getElementById('sharedProjectSelector');
 const sharedWorkspace = document.getElementById('sharedWorkspace');
 const sharedProject = document.getElementById('sharedProject');
+const sharedGoal = document.getElementById('sharedGoal');
 
 // Tab elements
 const panelTabs = document.getElementById('panelTabs');
@@ -182,6 +183,14 @@ async function getApiKey() {
             resolve(result.TRANSCRIPTION_API_KEY);
         });
     });
+}
+
+// The shared selector's project once its list has loaded. A blank selector then
+// means "no project" (e.g. the goal filter hid the stored one), so don't fall
+// back to the stored id and silently file work under a project the user can't see.
+async function getSelectedProjectId() {
+    if (sharedProject && sharedProjectsCache.length > 0) return sharedProject.value || null;
+    return getProjectId().catch(() => null);
 }
 
 async function getProjectId() {
@@ -407,10 +416,89 @@ async function populateWorkspaceAndProjectDropdowns(wsSelect, projSelect, presel
     return workspaces;
 }
 
+async function fetchGoalsForWorkspace(workspaceId) {
+    try {
+        const json = await trpcCall('goal.getAllMyGoals', workspaceId ? { workspaceId } : undefined, 'GET');
+        const goals = extractTrpcData(json) || [];
+        return goals.filter(g => g.status !== 'archived' && g.status !== 'completed');
+    } catch (error) {
+        console.error('Error fetching goals for workspace:', error);
+        return [];
+    }
+}
+
+// Goals and the unfiltered project list for the shared selector's workspace;
+// the goal select narrows the project select to that goal's projects.
+let sharedGoalsCache = [];
+let sharedProjectsCache = [];
+let sharedLoadSeq = 0;
+
+function renderSharedGoals(preselectId) {
+    if (!sharedGoal) return;
+    sharedGoal.innerHTML = '<option value="" data-searchable-keep>All goals</option>';
+    sharedGoalsCache.forEach(goal => {
+        const option = document.createElement('option');
+        option.value = String(goal.id);
+        option.textContent = goal.title;
+        sharedGoal.appendChild(option);
+    });
+    const id = preselectId ? String(preselectId) : '';
+    sharedGoal.value = sharedGoalsCache.some(g => String(g.id) === id) ? id : '';
+    sharedGoal.style.display = sharedGoalsCache.length === 0 ? 'none' : '';
+}
+
+function renderSharedProjects(preselectId) {
+    const previous = sharedProject.value;
+    const goal = sharedGoal && sharedGoal.value
+        ? sharedGoalsCache.find(g => String(g.id) === sharedGoal.value)
+        : null;
+    const goalProjectIds = goal ? new Set((goal.projects || []).map(p => p.id)) : null;
+    const projects = goalProjectIds
+        ? sharedProjectsCache.filter(p => goalProjectIds.has(p.id))
+        : sharedProjectsCache;
+
+    sharedProject.innerHTML = `<option value="">${goal && projects.length === 0 ? 'No projects for this goal' : 'Select project...'}</option>`;
+    projects.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.id;
+        option.textContent = project.name;
+        if (project.slug) option.dataset.slug = project.slug;
+        sharedProject.appendChild(option);
+    });
+
+    if (preselectId && projects.some(p => p.id === preselectId)) {
+        sharedProject.value = preselectId;
+    } else if (goal && projects.length === 1) {
+        // A goal with a single project: pick it rather than make the user do it.
+        sharedProject.value = projects[0].id;
+    } else {
+        sharedProject.value = '';
+    }
+    if (sharedProject.value && sharedProject.value !== previous) {
+        sharedProject.dispatchEvent(new Event('change'));
+    }
+}
+
+async function loadSharedGoalsAndProjects(workspaceId, { goalId, projectId } = {}) {
+    if (!sharedProject) return;
+    const seq = ++sharedLoadSeq;
+    sharedProject.innerHTML = '<option value="">Loading projects...</option>';
+    const [goals, projects] = await Promise.all([
+        fetchGoalsForWorkspace(workspaceId),
+        workspaceId ? fetchProjectsForWorkspace(workspaceId) : fetchProjects(),
+    ]);
+    // A newer workspace change superseded this load.
+    if (seq !== sharedLoadSeq) return;
+    sharedGoalsCache = goals;
+    sharedProjectsCache = projects || [];
+    renderSharedGoals(goalId);
+    renderSharedProjects(projectId);
+}
+
 async function populateSharedDropdowns() {
     if (!sharedWorkspace || !sharedProject) return;
 
-    const stored = await chrome.storage.local.get(['SELECTED_WORKSPACE_ID', 'SELECTED_PROJECT_ID']);
+    const stored = await chrome.storage.local.get(['SELECTED_WORKSPACE_ID', 'SELECTED_GOAL_ID', 'SELECTED_PROJECT_ID']);
     const workspaces = await fetchWorkspaces();
 
     sharedWorkspace.innerHTML = '<option value="">Select workspace...</option>';
@@ -428,26 +516,11 @@ async function populateSharedDropdowns() {
         sharedWorkspace.value = workspaces[0].id;
     }
 
-    // Populate projects based on selected workspace
-    const wsId = sharedWorkspace.value;
-    if (wsId) {
-        await populateProjectsForSelect(sharedProject, wsId);
-    } else {
-        const projects = await fetchProjects();
-        sharedProject.innerHTML = '<option value="">Select project...</option>';
-        projects.forEach(project => {
-            const option = document.createElement('option');
-            option.value = project.id;
-            option.textContent = project.name;
-            if (project.slug) option.dataset.slug = project.slug;
-            sharedProject.appendChild(option);
-        });
-    }
-
-    // Pre-select stored project
-    if (stored.SELECTED_PROJECT_ID) {
-        sharedProject.value = stored.SELECTED_PROJECT_ID;
-    }
+    // Populate goals and projects based on selected workspace
+    await loadSharedGoalsAndProjects(sharedWorkspace.value, {
+        goalId: stored.SELECTED_GOAL_ID,
+        projectId: stored.SELECTED_PROJECT_ID,
+    });
 }
 
 // --- Setup / configuration ---
@@ -600,6 +673,7 @@ clearApiKeyBtn.onclick = () => {
         if (hasProjects) {
             keysToRemove.push('SELECTED_PROJECT_ID');
             keysToRemove.push('SELECTED_WORKSPACE_ID');
+            keysToRemove.push('SELECTED_GOAL_ID');
         }
         chrome.storage.local.remove(keysToRemove, () => {
             apiKeyInput.value = '';
@@ -610,6 +684,165 @@ clearApiKeyBtn.onclick = () => {
         });
     }
 };
+
+// ── Searchable select ────────────────────────────────────────────────────
+// Layers a filterable text input over a native <select>. The select stays the
+// source of truth (value, options, change events), so code that reads, sets
+// or repopulates it keeps working untouched.
+
+const nativeSelectValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+
+function makeSearchableSelect(select) {
+    if (!select || select.dataset.searchable) return;
+    select.dataset.searchable = '1';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'searchable-select';
+    wrap.style.marginBottom = getComputedStyle(select).marginBottom;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = `${select.className} searchable-select-input`;
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-expanded', 'false');
+    const list = document.createElement('ul');
+    list.className = 'searchable-select-list';
+    list.setAttribute('role', 'listbox');
+
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(input);
+    wrap.appendChild(list);
+    wrap.appendChild(select);
+    select.classList.add('searchable-select-native');
+
+    let matches = [];
+    let activeIndex = -1;
+    let query = '';
+    const isOpen = () => list.style.display === 'block';
+
+    function syncInput() {
+        const current = select.selectedOptions[0];
+        const placeholder = select.querySelector('option[value=""]');
+        input.value = current && current.value ? current.textContent : '';
+        input.placeholder = placeholder ? placeholder.textContent : '';
+        wrap.style.display = select.style.display;
+    }
+
+    function highlight() {
+        Array.from(list.children).forEach((li, i) => {
+            li.setAttribute('aria-selected', i === activeIndex ? 'true' : 'false');
+        });
+        const active = list.children[activeIndex];
+        if (active) active.scrollIntoView({ block: 'nearest' });
+    }
+
+    function render(query) {
+        const q = query.trim().toLowerCase();
+        list.innerHTML = '';
+        // Empty-value options are placeholders unless explicitly kept (e.g. "All goals").
+        matches = Array.from(select.options).filter(o =>
+            (o.value || o.hasAttribute('data-searchable-keep')) &&
+            (!q || o.textContent.toLowerCase().includes(q)));
+        if (matches.length === 0) {
+            const li = document.createElement('li');
+            li.className = 'searchable-select-empty';
+            li.textContent = 'No matches';
+            list.appendChild(li);
+            activeIndex = -1;
+            return;
+        }
+        matches.forEach((opt) => {
+            const li = document.createElement('li');
+            li.setAttribute('role', 'option');
+            li.textContent = opt.textContent;
+            li.title = opt.textContent;
+            if (opt.value === select.value) li.classList.add('is-current');
+            li.addEventListener('mousedown', (e) => {
+                // mousedown so the choice lands before the input's blur closes the list
+                e.preventDefault();
+                choose(opt);
+            });
+            list.appendChild(li);
+        });
+        const currentIndex = matches.findIndex(o => o.value === select.value);
+        activeIndex = !q && currentIndex >= 0 ? currentIndex : 0;
+        highlight();
+    }
+
+    function open() {
+        query = '';
+        render(query);
+        list.style.display = 'block';
+        input.setAttribute('aria-expanded', 'true');
+    }
+
+    function close() {
+        list.style.display = 'none';
+        input.setAttribute('aria-expanded', 'false');
+        syncInput();
+    }
+
+    function choose(opt) {
+        const changed = select.value !== opt.value;
+        select.value = opt.value;
+        input.blur();
+        if (changed) select.dispatchEvent(new Event('change'));
+    }
+
+    input.addEventListener('focus', () => {
+        input.select();
+        open();
+    });
+    input.addEventListener('mousedown', () => {
+        // Reopen on click when already focused (e.g. after Escape).
+        if (document.activeElement === input && !isOpen()) open();
+    });
+    input.addEventListener('input', () => {
+        query = input.value;
+        render(query);
+        list.style.display = 'block';
+        input.setAttribute('aria-expanded', 'true');
+    });
+    input.addEventListener('blur', close);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!isOpen()) { open(); return; }
+            if (matches.length === 0) return;
+            const step = e.key === 'ArrowDown' ? 1 : -1;
+            activeIndex = Math.min(matches.length - 1, Math.max(0, activeIndex + step));
+            highlight();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (isOpen() && activeIndex >= 0) choose(matches[activeIndex]);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            close();
+        }
+    });
+
+    // Mirror programmatic changes: options repopulated, shown/hidden, or value set.
+    new MutationObserver(() => {
+        if (isOpen()) render(query);
+        else syncInput();
+    }).observe(select, { childList: true, attributes: true, attributeFilter: ['style'] });
+    Object.defineProperty(select, 'value', {
+        configurable: true,
+        get() { return nativeSelectValue.get.call(this); },
+        set(v) {
+            nativeSelectValue.set.call(this, v);
+            if (!isOpen()) syncInput();
+        },
+    });
+    // Callers focus the select to prompt a choice; send that to the input.
+    select.focus = () => input.focus();
+
+    syncInput();
+}
+
+[setupWorkspaceDropdown, projectDropdown, sharedWorkspace, sharedGoal, sharedProject, createActionPriority]
+    .forEach(makeSearchableSelect);
 
 // Setup flow: workspace change cascades to project dropdown
 if (setupWorkspaceDropdown) {
@@ -625,7 +858,22 @@ if (sharedWorkspace) {
         if (workspaceId) {
             chrome.storage.local.set({ SELECTED_WORKSPACE_ID: workspaceId });
         }
-        await populateProjectsForSelect(sharedProject, workspaceId);
+        // Goals belong to a workspace, so a workspace change resets the goal filter.
+        chrome.storage.local.remove('SELECTED_GOAL_ID');
+        await loadSharedGoalsAndProjects(workspaceId);
+    });
+}
+
+// Shared goal change: narrow projects to the goal's, and persist to storage
+if (sharedGoal) {
+    sharedGoal.addEventListener('change', () => {
+        const goalId = sharedGoal.value;
+        if (goalId) {
+            chrome.storage.local.set({ SELECTED_GOAL_ID: goalId });
+        } else {
+            chrome.storage.local.remove('SELECTED_GOAL_ID');
+        }
+        renderSharedProjects(sharedProject.value);
     });
 }
 
@@ -661,7 +909,7 @@ async function initEngine() {
 // --- Server communication (unchanged from dictation.js) ---
 
 async function startServerSession() {
-    const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
+    const projectId = await getSelectedProjectId();
     if (hasProjects && !projectId) {
         if (sharedProject) sharedProject.focus();
         throw new Error('Please select a project first');
@@ -797,7 +1045,7 @@ async function apiLinkActionsToTranscription(actionIds, transcriptionSessionId) 
 }
 
 async function createActionForRecording(name, sessionId) {
-    const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
+    const projectId = await getSelectedProjectId();
 
     const body = {
         json: {
@@ -2699,6 +2947,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Reconcile on panel open: getActive from server, restore display state
     reconcileActiveTimer();
 
+    // Save Page: Cmd/Ctrl+Enter submits from the context or description field
+    [savePageContext, savePageDesc].forEach((field) => {
+        if (!field || !savePageBtn) return;
+        field.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                savePageBtn.click();
+            }
+        });
+    });
+
     // Save Page: optional description toggle
     if (savePageDescToggle && savePageDesc) {
         savePageDescToggle.addEventListener('change', () => {
@@ -2725,7 +2984,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             savePageBtn.disabled = true;
             savePageBtn.textContent = 'Saving...';
             try {
-                const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
+                const projectId = await getSelectedProjectId();
                 if (hasProjects && !projectId) {
                     if (sharedProject) sharedProject.focus();
                     throw new Error('Please select a project first');
@@ -2785,7 +3044,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.error('Error saving page:', error);
                 savePageBtn.textContent = 'Save Failed';
                 if (savePageStatus) {
-                    savePageStatus.textContent = 'Network error';
+                    savePageStatus.textContent = error.message || 'Network error';
                     savePageStatus.className = 'save-page-status error';
                 }
             }
@@ -2814,7 +3073,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             createActionBtn.disabled = true;
             createActionBtn.textContent = 'Creating...';
             try {
-                const projectId = (sharedProject && sharedProject.value) || await getProjectId().catch(() => null);
+                const projectId = await getSelectedProjectId();
                 if (hasProjects && !projectId) {
                     if (sharedProject) sharedProject.focus();
                     throw new Error('Please select a project first');
