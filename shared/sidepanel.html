@@ -350,6 +350,20 @@
       .btn-save-page:hover {
         background: var(--color-success-hover);
       }
+      .save-page-toggle {
+        display: flex;
+        align-items: center;
+        gap: var(--space-xs);
+        font-size: var(--font-size-sm);
+        color: var(--color-gray-700);
+        margin-bottom: var(--space-sm);
+        cursor: pointer;
+        user-select: none;
+      }
+      .save-page-toggle input {
+        margin: 0;
+        cursor: pointer;
+      }
       .save-page-status {
         font-size: var(--font-size-sm);
         font-weight: var(--font-weight-medium);
@@ -1300,9 +1314,6 @@
       <button id="tabTrackTime" title="Track Time" aria-label="Track Time">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><polyline points="12 9 12 13 15 15"></polyline><line x1="9" y1="2" x2="15" y2="2"></line><line x1="12" y1="2" x2="12" y2="5"></line></svg>
       </button>
-      <button id="tabTimeEntries" title="Time Entries" aria-label="Time Entries">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><polyline points="3 4 3 10 9 10"></polyline><polyline points="12 7 12 12 16 14"></polyline></svg>
-      </button>
       <button id="tabRecording" title="Recording" aria-label="Recording">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
       </button>
@@ -1311,6 +1322,11 @@
     <!-- Tab 1: Save Page -->
     <div class="tab-panel active" id="panelSavePage">
       <input type="text" class="save-page-input" id="savePageContext" placeholder="Add context (optional)...">
+      <label class="save-page-toggle">
+        <input type="checkbox" id="savePageDescToggle">
+        Add description
+      </label>
+      <textarea class="save-page-input create-action-desc" id="savePageDesc" placeholder="Description..." rows="3" style="display:none;"></textarea>
       <button class="btn-save-page" id="savePageBtn">Save Page</button>
       <div class="save-page-status" id="savePageStatus"></div>
       <div class="recent-items" id="recentSavePage" style="display:none;">
@@ -1387,18 +1403,14 @@
       </div>
       <button class="btn-primary" id="trackTimeStopBtn" style="display:none;margin-top:var(--space-sm);">■ Stop</button>
       <div class="save-page-status" id="trackTimeStatus"></div>
-      <div class="recent-items" id="recentTrackTime" style="display:none;">
-        <div class="recent-items-header">Recently Logged</div>
-        <div class="recent-items-list" id="recentTrackTimeList"></div>
-      </div>
-    </div>
-
-    <!-- Tab: Time Entries (read-only history) -->
-    <div class="tab-panel" id="panelTimeEntries">
-      <div class="save-page-status" id="timeEntriesStatus"></div>
-      <div id="timeEntriesList"></div>
-      <div id="timeEntriesEmpty" style="display:none;text-align:center;padding:var(--space-lg);color:var(--color-gray-500);font-size:var(--font-size-sm);">
-        No time entries yet. Start a timer on the Track Time tab.
+      <!-- Time Entries (history with Resume) -->
+      <div class="recent-items" id="timeEntriesSection">
+        <div class="recent-items-header">Time Entries</div>
+        <div class="save-page-status" id="timeEntriesStatus"></div>
+        <div id="timeEntriesList"></div>
+        <div id="timeEntriesEmpty" style="display:none;text-align:center;padding:var(--space-lg);color:var(--color-gray-500);font-size:var(--font-size-sm);">
+          No time entries yet. Start a timer above.
+        </div>
       </div>
     </div>
 

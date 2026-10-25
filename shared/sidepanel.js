@@ -44,6 +44,8 @@ const panelRecording = document.getElementById('panelRecording');
 const savePageBtn = document.getElementById('savePageBtn');
 const savePageContext = document.getElementById('savePageContext');
 const savePageStatus = document.getElementById('savePageStatus');
+const savePageDescToggle = document.getElementById('savePageDescToggle');
+const savePageDesc = document.getElementById('savePageDesc');
 
 // Create Action tab elements
 const tabCreateActionBtn = document.getElementById('tabCreateAction');
@@ -78,9 +80,7 @@ const trackTimeElapsed = document.getElementById('trackTimeElapsed');
 const trackTimeStatus = document.getElementById('trackTimeStatus');
 const trackTimeSuggestions = document.getElementById('trackTimeSuggestions');
 
-// Time Entries (history) tab elements
-const tabTimeEntriesBtn = document.getElementById('tabTimeEntries');
-const panelTimeEntries = document.getElementById('panelTimeEntries');
+// Time Entries (history, shown under Track Time)
 const timeEntriesList = document.getElementById('timeEntriesList');
 const timeEntriesEmpty = document.getElementById('timeEntriesEmpty');
 const timeEntriesStatus = document.getElementById('timeEntriesStatus');
@@ -2316,6 +2316,7 @@ async function startTimeEntry() {
         renderTrackTimeRunning(entry);
         setTrackTimeStatus('', '');
         notifyBackground('TIMER_STARTED');
+        loadTimeEntries();
     } catch (err) {
         setTrackTimeStatus(err.message || 'Failed to start', 'error');
     } finally {
@@ -2354,15 +2355,21 @@ function formatDurationMins(startedAt, endedAt) {
     return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
+let timeEntriesLoadSeq = 0;
+
 async function loadTimeEntries() {
     if (!timeEntriesList) return;
+    // Loads overlap (tab open + start/stop/resume); only the latest may render.
+    const seq = ++timeEntriesLoadSeq;
     timeEntriesStatus.textContent = '';
     timeEntriesStatus.className = 'save-page-status';
     try {
         const json = await trpcCall('timeEntry.listRecent', { limit: 20 }, 'GET');
+        if (seq !== timeEntriesLoadSeq) return;
         const entries = extractTrpcData(json) || [];
         renderTimeEntries(entries);
     } catch (err) {
+        if (seq !== timeEntriesLoadSeq) return;
         timeEntriesList.innerHTML = '';
         timeEntriesStatus.textContent = (err && err.message) || 'Could not load entries';
         timeEntriesStatus.className = 'save-page-status error';
@@ -2458,8 +2465,6 @@ async function resumeFromHistory(entry, btn) {
         });
         notifyBackground('TIMER_STARTED');
         renderTrackTimeRunning(newEntry);
-        // Switch to Track Time tab so the user sees the running timer.
-        if (tabTrackTimeBtn) tabTrackTimeBtn.click();
         // Refresh history list to include any auto-stopped entry.
         loadTimeEntries();
     } catch (err) {
@@ -2478,26 +2483,12 @@ async function stopTimeEntry() {
     trackTimeStopBtn.disabled = true;
     setTrackTimeStatus('Stopping…', '');
     try {
-        const cached = await new Promise((resolve) => {
-            chrome.storage.local.get([TRACK_TIME_CACHE_KEY], (r) => resolve((r || {})[TRACK_TIME_CACHE_KEY] || null));
-        });
-        const stopJson = await trpcCall('timeEntry.stop', {});
+        await trpcCall('timeEntry.stop', {});
         await chrome.storage.local.remove(TRACK_TIME_CACHE_KEY);
-        // Prefer the server's stopped entry (authoritative times/name); fall
-        // back to the local cache captured before the stop call.
-        const stopped = extractTrpcData(stopJson);
-        const startedAt = (stopped && stopped.startedAt) || (cached && cached.startedAt);
-        if (startedAt) {
-            const endedAt = (stopped && stopped.endedAt) ? new Date(stopped.endedAt).getTime() : Date.now();
-            const entryName = (stopped && stopped.action && stopped.action.name) || (cached && cached.name) || '';
-            addRecentItem('trackTime', {
-                name: htmlToPlainText(entryName) || 'Untitled',
-                meta: formatElapsed(endedAt - new Date(startedAt).getTime()),
-            });
-        }
         renderTrackTimeIdle();
         setTrackTimeStatus('', '');
         notifyBackground('TIMER_STOPPED');
+        loadTimeEntries();
     } catch (err) {
         setTrackTimeStatus(err.message || 'Failed to stop', 'error');
     } finally {
@@ -2513,16 +2504,14 @@ const RECENT_SECTIONS = {
     savePage: { container: 'recentSavePage', list: 'recentSavePageList' },
     createAction: { container: 'recentCreateAction', list: 'recentCreateActionList' },
     addContact: { container: 'recentAddContact', list: 'recentAddContactList' },
-    trackTime: { container: 'recentTrackTime', list: 'recentTrackTimeList' },
 };
 const RECENT_ITEM_ICONS = {
     savePage: '<svg class="recording-action-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>',
     createAction: '<svg class="recording-action-link-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="14" height="14" rx="3"/><path d="M4.5 8.5L7 11L11.5 5.5"/></svg>',
     addContact: '<svg class="recording-action-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle></svg>',
-    trackTime: '<svg class="recording-action-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><polyline points="12 9 12 13 15 15"></polyline></svg>',
 };
 
-let recentItems = { savePage: [], createAction: [], addContact: [], trackTime: [] };
+let recentItems = { savePage: [], createAction: [], addContact: [] };
 
 async function loadRecentItems() {
     const stored = await new Promise((resolve) => {
@@ -2630,8 +2619,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { chrome.storage.local.set({ API_BASE_URL: apiBaseURL }); } catch (_) {}
 
     // Initialize panel tabs based on config
-    const allTabs = [tabSavePageBtn, tabCreateActionBtn, tabAddContactBtn, tabTrackTimeBtn, tabTimeEntriesBtn, tabRecordingBtn].filter(Boolean);
-    const allPanels = [panelSavePage, panelCreateAction, panelAddContact, panelTrackTime, panelTimeEntries, panelRecording].filter(Boolean);
+    const allTabs = [tabSavePageBtn, tabCreateActionBtn, tabAddContactBtn, tabTrackTimeBtn, tabRecordingBtn].filter(Boolean);
+    const allPanels = [panelSavePage, panelCreateAction, panelAddContact, panelTrackTime, panelRecording].filter(Boolean);
 
     function switchTab(activeTab, activePanel) {
         allTabs.forEach(t => t.classList.remove('active'));
@@ -2669,11 +2658,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         tabTrackTimeBtn.addEventListener('click', () => {
             switchTab(tabTrackTimeBtn, panelTrackTime);
             reconcileActiveTimer();
-        });
-    }
-    if (tabTimeEntriesBtn) {
-        tabTimeEntriesBtn.addEventListener('click', () => {
-            switchTab(tabTimeEntriesBtn, panelTimeEntries);
             loadTimeEntries();
         });
     }
@@ -2715,6 +2699,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Reconcile on panel open: getActive from server, restore display state
     reconcileActiveTimer();
 
+    // Save Page: optional description toggle
+    if (savePageDescToggle && savePageDesc) {
+        savePageDescToggle.addEventListener('change', () => {
+            savePageDesc.style.display = savePageDescToggle.checked ? '' : 'none';
+            if (savePageDescToggle.checked) savePageDesc.focus();
+        });
+    }
+
     // Save Page button
     if (savePageBtn) {
         savePageBtn.addEventListener('click', async () => {
@@ -2739,6 +2731,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     throw new Error('Please select a project first');
                 }
                 const context = savePageContext ? savePageContext.value : '';
+                const description = (savePageDescToggle && savePageDescToggle.checked && savePageDesc)
+                    ? savePageDesc.value.trim()
+                    : '';
                 const { plain } = formatActionName(tab.url, tab.title, context);
                 const body = {
                     json: {
@@ -2764,7 +2759,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const finalName = context && context.trim()
                             ? `${escapeHtml(cleanedName)}: ${link}`
                             : link;
-                        apiUpdateAction(actionId, { name: finalName });
+                        const fields = { name: finalName };
+                        if (description) fields.description = description;
+                        apiUpdateAction(actionId, fields);
                     }
                     addRecentItem('savePage', {
                         name: (context && context.trim()) ? `${context.trim()}: ${tab.title || tab.url}` : (tab.title || tab.url),
@@ -2776,6 +2773,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         savePageStatus.className = 'save-page-status success';
                     }
                     if (savePageContext) savePageContext.value = '';
+                    if (savePageDesc) savePageDesc.value = '';
                 } else {
                     savePageBtn.textContent = 'Save Failed';
                     if (savePageStatus) {
