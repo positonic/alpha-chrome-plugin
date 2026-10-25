@@ -469,13 +469,12 @@ function renderSharedProjects(preselectId) {
     if (preselectId && projects.some(p => p.id === preselectId)) {
         sharedProject.value = preselectId;
     } else if (goal && projects.length === 1) {
-        // A goal with a single project: pick it rather than make the user do it.
+        // A goal with a single project: pick it rather than make the user do it,
+        // and run the normal change handling (persist, stop any recording).
         sharedProject.value = projects[0].id;
+        if (sharedProject.value !== previous) sharedProject.dispatchEvent(new Event('change'));
     } else {
         sharedProject.value = '';
-    }
-    if (sharedProject.value && sharedProject.value !== previous) {
-        sharedProject.dispatchEvent(new Event('change'));
     }
 }
 
