@@ -2355,15 +2355,21 @@ function formatDurationMins(startedAt, endedAt) {
     return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
+let timeEntriesLoadSeq = 0;
+
 async function loadTimeEntries() {
     if (!timeEntriesList) return;
+    // Loads overlap (tab open + start/stop/resume); only the latest may render.
+    const seq = ++timeEntriesLoadSeq;
     timeEntriesStatus.textContent = '';
     timeEntriesStatus.className = 'save-page-status';
     try {
         const json = await trpcCall('timeEntry.listRecent', { limit: 20 }, 'GET');
+        if (seq !== timeEntriesLoadSeq) return;
         const entries = extractTrpcData(json) || [];
         renderTimeEntries(entries);
     } catch (err) {
+        if (seq !== timeEntriesLoadSeq) return;
         timeEntriesList.innerHTML = '';
         timeEntriesStatus.textContent = (err && err.message) || 'Could not load entries';
         timeEntriesStatus.className = 'save-page-status error';
