@@ -2646,48 +2646,29 @@ function renderTimeEntries(entries) {
 
     for (const [key, rows] of groups) {
         const header = document.createElement('div');
-        header.style.fontWeight = '600';
-        header.style.fontSize = 'var(--font-size-sm)';
-        header.style.color = 'var(--color-gray-700)';
-        header.style.marginTop = 'var(--space-md)';
-        header.style.marginBottom = 'var(--space-xs)';
+        header.className = 'time-entry-day';
         header.textContent = dayLabel(new Date(key));
         timeEntriesList.appendChild(header);
 
         for (const e of rows) {
             const row = document.createElement('div');
-            row.style.display = 'flex';
-            row.style.alignItems = 'center';
-            row.style.justifyContent = 'space-between';
-            row.style.padding = 'var(--space-xs) var(--space-sm)';
-            row.style.borderRadius = 'var(--radius-md)';
-            row.style.background = 'var(--color-gray-100)';
-            row.style.marginBottom = 'var(--space-xs)';
+            row.className = 'time-entry-row';
 
             const left = document.createElement('div');
-            left.style.minWidth = '0';
-            left.style.flex = '1';
+            left.className = 'time-entry-info';
             const name = document.createElement('div');
-            name.style.fontSize = 'var(--font-size-sm)';
-            name.style.fontWeight = '500';
-            name.style.overflow = 'hidden';
-            name.style.textOverflow = 'ellipsis';
-            name.style.whiteSpace = 'nowrap';
+            name.className = 'time-entry-name';
             name.textContent = htmlToPlainText(e.action && e.action.name) || 'Untitled';
+            name.title = name.textContent;
             const meta = document.createElement('div');
-            meta.style.fontSize = '11px';
-            meta.style.color = 'var(--color-gray-500)';
+            meta.className = 'time-entry-meta';
             meta.textContent = `${formatTimeOfDay(e.startedAt)}–${formatTimeOfDay(e.endedAt)} · ${formatDurationMins(e.startedAt, e.endedAt)}`;
             left.appendChild(name);
             left.appendChild(meta);
 
             const resumeBtn = document.createElement('button');
-            resumeBtn.textContent = 'Resume';
-            resumeBtn.className = 'btn-primary';
-            resumeBtn.style.flex = '0 0 auto';
-            resumeBtn.style.marginLeft = 'var(--space-sm)';
-            resumeBtn.style.padding = '4px 10px';
-            resumeBtn.style.fontSize = 'var(--font-size-sm)';
+            resumeBtn.textContent = '▶ Resume';
+            resumeBtn.className = 'time-entry-resume';
             resumeBtn.addEventListener('click', () => resumeFromHistory(e, resumeBtn));
 
             row.appendChild(left);
