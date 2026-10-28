@@ -49,9 +49,13 @@ This repo builds Chrome extensions — "Exponential Capture" (primary) and "Trad
 - **shutter.mp3** - Played when screenshot is captured
 - **timeout.mp3** - Audio feedback for timeouts (referenced but not actively used)
 
+## Always Run the Build
+
+**After making any code change, run `./build.sh` before you finish.** Chrome loads the extension from `dist/`, so changes in `shared/`, `exponential/` or `tradescape/` do nothing until the build has run. This step is easy to forget, so do it every time and check that it exits 0.
+
 ## Development Notes
 
-- No build process required - this is a vanilla JavaScript Chrome extension
+- Vanilla JavaScript (no framework), but there IS a build step: `./build.sh` copies `shared/` into each extension and writes the loadable builds to `dist/` (`dist/exponential-test`, `dist/tradescape-test`; add `--prod` for the PROD builds)
 - Uses Web Speech API (webkitSpeechRecognition) for speech recognition
 - Requires microphone permissions to function
 - Extension communicates with external API for transcription storage
