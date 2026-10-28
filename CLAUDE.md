@@ -51,7 +51,7 @@ This repo builds Chrome extensions — "Exponential Capture" (primary) and "Trad
 
 ## Always Run the Build
 
-**After making any code change, run `./build.sh` before you finish.** Chrome loads the extension from `dist/`, so changes in `shared/`, `exponential/` or `tradescape/` do nothing until the build has run. This step is easy to forget, so do it every time and check that it exits 0.
+**After making any code change, run `./build.sh --prod` before you finish.** Chrome loads the extension from `dist/`, so changes in `shared/`, `exponential/` or `tradescape/` do nothing until the build has run. Use `--prod`: the user loads `dist/exponential-prod`, and plain `./build.sh` only rebuilds the TEST builds. This step is easy to forget, so do it every time, check that it exits 0, and remind the user to click reload on the extension in `chrome://extensions`.
 
 ## Development Notes
 
