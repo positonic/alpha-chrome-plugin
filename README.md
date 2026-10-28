@@ -2,7 +2,7 @@
 
 This repository contains two Chrome extensions:
 
-1. **Exponential** (Alpha Whisper) - Voice dictation with project management
+1. **Exponential Capture** - Voice dictation, page saving, actions, contacts and time tracking for Exponential
 2. **Tradescape** - Simplified voice dictation without project management
 
 ## Structure

@@ -1,5 +1,5 @@
 const EXTENSION_CONFIG = {
-    name: "Alpha Whisper",
+    name: "Exponential Capture",
     apiBaseURL: "http://localhost:3000",
     hasProjects: true,
     hasSavePage: true,

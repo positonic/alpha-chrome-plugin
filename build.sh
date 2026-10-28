@@ -43,7 +43,7 @@ echo "Building Exponential TEST..."
 rsync -av --delete --exclude='.DS_Store' exponential/ dist/exponential-test/
 cat > dist/exponential-test/config.js << 'EOF'
 const EXTENSION_CONFIG = {
-    name: "Exponential Whisper",
+    name: "Exponential Capture",
     apiBaseURL: "http://localhost:3000",
     hasProjects: true,
     hasSavePage: true,
@@ -53,8 +53,8 @@ const EXTENSION_CONFIG = {
     projects: [] // Will be loaded dynamically from API
 };
 EOF
-sed -i '' 's/"action": {/"action": {\n      "default_title": "Exponential Whisper (TEST - localhost)",/' dist/exponential-test/manifest.json
-sed -i '' 's/"name": "Exponential Whisper"/"name": "Exponential Whisper (TEST)"/' dist/exponential-test/manifest.json
+sed -i '' 's/"action": {/"action": {\n      "default_title": "Exponential Capture (TEST - localhost)",/' dist/exponential-test/manifest.json
+sed -i '' 's/"name": "Exponential Capture"/"name": "Exponential Capture (TEST)"/' dist/exponential-test/manifest.json
 
 # Build Tradescape TEST
 echo "Building Tradescape TEST..."
@@ -83,7 +83,7 @@ if [ "$BUILD_PROD" = true ]; then
     rsync -av --delete --exclude='.DS_Store' exponential/ dist/exponential-prod/
     cat > dist/exponential-prod/config.js << 'EOF'
 const EXTENSION_CONFIG = {
-    name: "Exponential Whisper",
+    name: "Exponential Capture",
     apiBaseURL: "https://www.exponential.im",
     hasProjects: true,
     hasSavePage: true,
@@ -93,8 +93,8 @@ const EXTENSION_CONFIG = {
     projects: [] // Will be loaded dynamically from API
 };
 EOF
-    sed -i '' 's/"action": {/"action": {\n      "default_title": "Exponential Whisper (PROD - exponential.im)",/' dist/exponential-prod/manifest.json
-    sed -i '' 's/"name": "Exponential Whisper"/"name": "Exponential Whisper (PROD)"/' dist/exponential-prod/manifest.json
+    sed -i '' 's/"action": {/"action": {\n      "default_title": "Exponential Capture (PROD - exponential.im)",/' dist/exponential-prod/manifest.json
+    sed -i '' 's/"name": "Exponential Capture"/"name": "Exponential Capture (PROD)"/' dist/exponential-prod/manifest.json
 
     # Build Tradescape PROD
     echo "Building Tradescape PROD..."
