@@ -1764,7 +1764,7 @@ async function handlePublishActions() {
 
         const result = await apiPublishSelectedDraftActions(currentSessionId, actionIds);
 
-        actionsModalBody.innerHTML = `<div class="actions-modal-empty" style="color: #059669;">
+        actionsModalBody.innerHTML = `<div class="actions-modal-empty" style="color: var(--color-success);">
             ${result.publishedCount} action${result.publishedCount === 1 ? '' : 's'} created successfully!
         </div>`;
         actionsModalPublish.style.display = 'none';
@@ -1966,7 +1966,7 @@ function renderActionScreenshotPreviews() {
 
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '\u00d7';
-        removeBtn.style.cssText = 'position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:#dc2626;color:white;border:none;font-size:10px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;';
+        removeBtn.style.cssText = 'position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:var(--color-error);color:white;border:none;font-size:10px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;';
         removeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             pendingActionScreenshots.splice(index, 1);
@@ -2462,7 +2462,7 @@ function renderTrackTimeSuggestions(items) {
         li.style.cursor = 'pointer';
         li.style.fontSize = 'var(--font-size-sm)';
         if (i < items.length - 1) {
-            li.style.borderBottom = '1px solid var(--color-gray-200)';
+            li.style.borderBottom = '1px solid var(--border)';
         }
         const cleanName = htmlToPlainText(item.name);
         const projectName = htmlToPlainText(item.project && item.project.name);
