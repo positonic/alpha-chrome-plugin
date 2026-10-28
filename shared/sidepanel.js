@@ -26,6 +26,7 @@ const settingsBtn = document.getElementById('settingsBtn');
 const settingsDropdown = document.getElementById('settingsDropdown');
 const clearApiKeyBtn = document.getElementById('clearApiKeyBtn');
 const appNameEl = document.getElementById('appName');
+const appLogoEl = document.getElementById('appLogo');
 const testModeBadge = document.getElementById('testModeBadge');
 const currentKeyDisplay = document.getElementById('currentKeyDisplay');
 const setupWorkspaceDropdown = document.getElementById('setupWorkspaceDropdown');
@@ -2839,6 +2840,11 @@ function renderRecentItems(category) {
 document.addEventListener('DOMContentLoaded', async () => {
     // Set app name and test mode badge
     appNameEl.textContent = EXTENSION_CONFIG.name;
+    document.title = EXTENSION_CONFIG.name;
+    const manifestIcons = chrome.runtime.getManifest().icons || {};
+    const logoPath = manifestIcons['48'] || manifestIcons['32'];
+    if (logoPath) appLogoEl.src = logoPath;
+    else appLogoEl.remove();
     if (apiBaseURL.includes('localhost')) {
         const url = new URL(apiBaseURL);
         testModeBadge.textContent = 'TEST - Port ' + url.port;

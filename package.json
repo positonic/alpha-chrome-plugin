@@ -2,7 +2,7 @@
   "name": "alpha-chrome-plugin",
   "version": "1.0.0",
   "private": true,
-  "description": "Alpha Trader Chrome extension with local Whisper speech recognition",
+  "description": "Exponential and Tradescape Chrome extensions with local Whisper speech recognition",
   "scripts": {
     "build": "bash build.sh"
   },

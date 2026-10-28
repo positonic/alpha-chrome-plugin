@@ -1,7 +1,7 @@
 {
-    "name": "Exponential Whisper",
+    "name": "Exponential Capture",
     "version": "1.2",
-    "description": "A voice dictation extension with local Whisper speech recognition",
+    "description": "Capture pages, actions, contacts, time and voice notes into Exponential",
     "manifest_version": 3,
     "permissions": [
         "activeTab",

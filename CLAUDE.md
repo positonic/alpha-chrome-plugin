@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Chrome extension called "Alpha Trader" that provides voice dictation functionality. The extension allows users to speak into their microphone and have their speech transcribed and inserted into text fields on web pages. It also includes screenshot functionality with voice commands.
+This repo builds Chrome extensions — "Exponential Capture" (primary) and "Tradescape" — that provide voice dictation functionality. The extension allows users to speak into their microphone and have their speech transcribed and inserted into text fields on web pages. It also includes screenshot functionality with voice commands.
 
 ## Architecture
 
