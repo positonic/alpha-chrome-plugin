@@ -3118,10 +3118,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (article && article.publishedTime && !isNaN(Date.parse(article.publishedTime))) {
                     input.publishedAt = new Date(article.publishedTime).toISOString();
                 }
+                // Workspace only: the Reading list is filtered by workspace, and
+                // a projectId would need edit access and re-file existing rows.
                 const workspaceId = sharedWorkspace ? sharedWorkspace.value : '';
                 if (workspaceId) input.workspaceId = workspaceId;
-                const projectId = await getSelectedProjectId();
-                if (projectId && projectId !== 'default') input.projectId = projectId;
 
                 const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/resource.create`, {
                     method: 'POST',
