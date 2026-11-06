@@ -48,6 +48,7 @@ const savePageContext = document.getElementById('savePageContext');
 const savePageStatus = document.getElementById('savePageStatus');
 const savePageDescToggle = document.getElementById('savePageDescToggle');
 const savePageDesc = document.getElementById('savePageDesc');
+const readLaterBtn = document.getElementById('readLaterBtn');
 
 // Create Action tab elements
 const tabCreateActionBtn = document.getElementById('tabCreateAction');
@@ -1285,6 +1286,14 @@ function getActionUrl(actionId) {
     return `${apiBaseURL}/actions?actionId=${actionId}`;
 }
 
+function getReadingListUrl() {
+    const wsId = sharedWorkspace ? sharedWorkspace.value : null;
+    const ws = wsId ? cachedWorkspaces.find(w => w.id === wsId) : null;
+    return ws && ws.slug
+        ? `${apiBaseURL}/w/${ws.slug}/knowledge-base`
+        : `${apiBaseURL}/knowledge-base`;
+}
+
 function renderRecordingActions(drawer, actions, sessionId) {
     drawer.innerHTML = '';
 
@@ -2015,6 +2024,29 @@ const caScreenshotPreview = document.getElementById('caScreenshotPreview');
 async function getActiveNormalTab() {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     return tabs[0] || null;
+}
+
+// Must match MAX_RAW_CONTENT_CHARS in exponential-app's resource router; a
+// bigger body is rejected, so we fall back to saving a bare link.
+const MAX_ARTICLE_HTML_CHARS = 1000000;
+
+// Run Readability in the tab and return the article, or null when the page
+// can't be scripted (chrome://, the Web Store, PDFs) or extraction fails.
+async function extractArticle(tabId) {
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ['readability-extract.bundle.js']
+        });
+        const [injection] = await chrome.scripting.executeScript({
+            target: { tabId },
+            func: () => globalThis.__expoExtractArticle?.() ?? null
+        });
+        return injection?.result || null;
+    } catch (e) {
+        console.warn('Cannot extract article:', e.message);
+        return null;
+    }
 }
 
 async function ensureAnnotationInjected(tabId) {
@@ -3041,6 +3073,82 @@ document.addEventListener('DOMContentLoaded', async () => {
             setTimeout(() => {
                 savePageBtn.disabled = false;
                 savePageBtn.textContent = 'Save Page';
+            }, 2000);
+        });
+    }
+
+    // Add to Reading List button: saves the page as a Resource in the
+    // Knowledge Base's Reading list, with the article body when we can read it.
+    if (readLaterBtn) {
+        readLaterBtn.addEventListener('click', async () => {
+            const setStatus = (text, kind) => {
+                if (!savePageStatus) return;
+                savePageStatus.textContent = text;
+                savePageStatus.className = kind ? `save-page-status ${kind}` : 'save-page-status';
+            };
+            setStatus('');
+            const tab = await getActiveNormalTab();
+            if (!tab || !/^https?:/.test(tab.url || '')) {
+                setStatus('Only web pages can be added to the Reading list', 'error');
+                return;
+            }
+            readLaterBtn.disabled = true;
+            readLaterBtn.textContent = 'Saving...';
+            try {
+                const article = await extractArticle(tab.id);
+                const body = article && article.content && article.content.length <= MAX_ARTICLE_HTML_CHARS
+                    ? article.content
+                    : undefined;
+                const context = savePageContext ? savePageContext.value.trim() : '';
+                const userDescription = (savePageDescToggle && savePageDescToggle.checked && savePageDesc)
+                    ? savePageDesc.value.trim()
+                    : '';
+                const input = {
+                    title: tab.title || (article && article.title) || tab.url,
+                    url: tab.url,
+                    contentType: body ? 'web_page' : 'bookmark',
+                    readStatus: 'to_read',
+                    // Capturing the body doesn't imply indexing it (ADR-0072).
+                    generateEmbeddings: false,
+                };
+                const description = userDescription || context || (article && article.excerpt);
+                if (description) input.description = description;
+                if (body) input.rawContent = body;
+                if (article && article.byline) input.author = article.byline;
+                if (article && article.publishedTime && !isNaN(Date.parse(article.publishedTime))) {
+                    input.publishedAt = new Date(article.publishedTime).toISOString();
+                }
+                const workspaceId = sharedWorkspace ? sharedWorkspace.value : '';
+                if (workspaceId) input.workspaceId = workspaceId;
+                const projectId = await getSelectedProjectId();
+                if (projectId && projectId !== 'default') input.projectId = projectId;
+
+                const response = await authenticatedFetch(`${apiBaseURL}/api/trpc/resource.create`, {
+                    method: 'POST',
+                    body: JSON.stringify({ json: input })
+                });
+                if (!response.ok) {
+                    throw new Error(await readTrpcErrorMessage(response, 'Failed to add to Reading list'));
+                }
+                const result = await response.json();
+                const created = result?.result?.data?.json?.created;
+                addRecentItem('savePage', {
+                    name: `Reading list: ${tab.title || tab.url}`,
+                    url: getReadingListUrl(),
+                });
+                readLaterBtn.textContent = 'Added!';
+                const note = created === false ? 'Already saved, moved back to Reading list' : 'Added to Reading list';
+                setStatus(body ? note : `${note} (link only, no article text)`, 'success');
+                if (savePageContext) savePageContext.value = '';
+                if (savePageDesc) savePageDesc.value = '';
+            } catch (error) {
+                console.error('Error adding to Reading list:', error);
+                readLaterBtn.textContent = 'Save Failed';
+                setStatus(error.message || 'Network error', 'error');
+            }
+            setTimeout(() => {
+                readLaterBtn.disabled = false;
+                readLaterBtn.textContent = 'Add to Reading List';
             }, 2000);
         });
     }
