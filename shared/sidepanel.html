@@ -452,6 +452,16 @@
       .btn-save-page:hover {
         background: var(--color-primary-hover);
       }
+      .btn-read-later {
+        margin-top: var(--space-sm);
+        background: var(--surface);
+        color: var(--color-primary-text);
+        border: 1px solid var(--border-strong);
+      }
+      .btn-read-later:hover {
+        background: var(--color-primary-soft);
+        border-color: var(--color-primary);
+      }
       .save-page-toggle {
         display: flex;
         align-items: center;
@@ -1558,6 +1568,7 @@
       </label>
       <textarea class="save-page-input create-action-desc" id="savePageDesc" placeholder="Description..." rows="3" style="display:none;"></textarea>
       <button class="btn-save-page" id="savePageBtn">Save Page</button>
+      <button class="btn-read-later" id="readLaterBtn" title="Add this page to your Reading list in the Knowledge Base">Add to Reading List</button>
       <div class="save-page-status" id="savePageStatus"></div>
       <div class="recent-items" id="recentSavePage" style="display:none;">
         <div class="recent-items-header">Recent Saved Pages</div>
